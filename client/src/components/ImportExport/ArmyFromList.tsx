@@ -28,6 +28,7 @@ const ArmyFromList = ({ onLoadArmyFromList }: IArmyFromListProps) => {
           .replace(/ - .*/g, '')
           .replace(/,.*/g, '')
           .replace(/\(.*\)/g, '')
+          .replace(/\[.*\]/g, '')
           .trim());
         if (lowercaseArmylist.includes(strippedUnitName)) {
           armyUnits.units.push(unit);
