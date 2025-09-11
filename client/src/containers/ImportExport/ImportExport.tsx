@@ -1,8 +1,6 @@
 import {
   Card,
-  CircularProgress,
   Divider,
-  Paper,
   Switch,
   TextField,
   Theme,
@@ -16,12 +14,10 @@ import BSDataUnits from 'components/ImportExport/BSDataUnits';
 import ExportArmyItem from 'components/ImportExport/ExportArmyItem';
 import FactionSelector from 'components/ImportExport/FactionSelector';
 import ImportArmy from 'components/ImportExport/ImportArmy';
-import { useReadFromFile } from 'hooks';
 import React, { useEffect, useState } from 'react';
-import ReactMarkdown from 'react-markdown';
 import { useDispatch, useSelector } from 'react-redux';
 import { useHistory } from 'react-router-dom';
-import { configSelector, mergedBattletomesSelector, spearheadSelector } from 'store/selectors';
+import { configSelector, mergedBattletomesSelector } from 'store/selectors';
 import { battletomesStore, configStore, notificationsStore, unitsStore } from 'store/slices';
 import { Faction, IArmy } from 'types/army';
 import { IUnitParameter } from 'types/unit';
@@ -77,11 +73,9 @@ const ImportExport = () => {
   const classes = useStyles();
   const history = useHistory();
   const dispatch = useDispatch();
-  const content = useReadFromFile('contribute.md');
   const config = useSelector(configSelector);
   const compareString = (a, b) => 0 - (a < b ? 1 : -1);
   const compareUnit = (a, b) => compareString(a.name, b.name);
-  const sortedSpearheads = useSelector(spearheadSelector);
   const sortedMatchPlays = useSelector(mergedBattletomesSelector);
   const CHANGE_TITLE = false;
   const excludedFactions = [Faction.All, Faction.List];
@@ -232,21 +226,11 @@ const ImportExport = () => {
           <div className={classes.flexRow}>
             <ImportArmy onArmyLoad={loadUnits} text="Import units from a file" />
             <ArmySelector onClick={loadInactiveArmy} armies={sortedMatchPlays} label="Import Faction" />
-            <ArmySelector onClick={loadActiveArmy} armies={sortedSpearheads} label="Import Spearhead" />
           </div>
           <Divider className={classes.divider} />
           <div className={classes.flexRow}>
             <ArmyFromList onLoadArmyFromList={loadActiveArmy} />
           </div>
-          <Divider className={classes.divider} />
-          <Paper>
-            {!content && (
-              <div className={classes.loader}>
-                <CircularProgress size="6rem" />
-              </div>
-            )}
-            <ReactMarkdown source={content} className={classes.md} />
-          </Paper>
         </Card>
         <Divider className={classes.divider} />
         <Card className={classes.card}>

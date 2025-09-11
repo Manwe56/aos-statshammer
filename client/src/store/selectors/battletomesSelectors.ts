@@ -1,5 +1,4 @@
 import MATCHPLAY from 'armies/matchplay/matchplay';
-import SPEARHEADS from 'armies/spearheads/spearheads';
 import { createSelector } from 'reselect';
 import type { IStore } from 'types/store';
 import { activeUnit } from './unitsSelectors';
@@ -31,5 +30,3 @@ export const getFactionUnits = createSelector(battletomesSelector, ({ battletome
 );
 
 export const getRankingFaction = createSelector(battletomesSelector, ({rankingFaction}) => rankingFaction);
-
-export const spearheadSelector = createSelector(battletomesSelector, () => [...SPEARHEADS].sort(compareArmy));
