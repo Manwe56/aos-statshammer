@@ -1,13 +1,11 @@
 import { makeStyles } from '@material-ui/core/styles';
 import { fetchModifiers, fetchSimulations, fetchStatsCompare, fetchTargetModifiers } from 'api';
-import { useMapping } from 'hooks';
 import _ from 'lodash';
 import PdfGenerator from 'pdf';
-import React, { useCallback, useEffect, useMemo } from 'react';
+import React, { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { getSanitizedActiveUnitsSelector, getSanitizedTargetSelector } from 'store/selectors';
 import type { IStore } from 'types/store';
-import { applyUnitNameMapping, getResultsMapping } from 'utils/mappers';
 
 const useStyles = makeStyles(() => ({
   pdfContainer: {
@@ -31,11 +29,7 @@ const PdfContainer = () => {
   const target = useSelector(getSanitizedTargetSelector);
   const dispatch = useDispatch();
 
-  const nameMapping = useMemo(() => applyUnitNameMapping(units), [units]);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const resultsMapper = useCallback(getResultsMapping(nameMapping), [nameMapping]);
-
-  const results = useMapping(stats.payload, resultsMapper, stats.pending);
+  const results = stats.payload;
   const probabilities = simulations.results;
 
   useEffect(() => {

@@ -59,15 +59,22 @@ class Unit {
       (acc, profile) => acc + new AverageDamageProcessor(profile, target).getAverageDamage(),
       0,
     );
-    return per100Points ? (averageDamage * 100) / Math.max(1, this.points) : averageDamage;
+    if (per100Points) {
+      const points = Number(this.points) || 1;
+      return (averageDamage * 100) / Math.max(1, points);
+    }
+    return averageDamage;
   }
 
   effectiveHealth(rend: number | string, per100Points: boolean): number {
-    let totalHealth = this.models * this.health;
+    const models = Number(this.models) || 0;
+    const health = Number(this.health) || 0;
+    let totalHealth = models * health;
     const target = new Target(this.save, this.modifiers);
 
     if (per100Points) {
-      totalHealth *= 100 / this.points;
+      const points = Number(this.points) || 1;
+      totalHealth *= 100 / Math.max(1, points);
     }
 
     if (rend === MORTAL_WOUND_REND) {
