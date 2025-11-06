@@ -57,8 +57,8 @@ const PdfGenerator: React.FC<IPdfGeneratorProps> = ({ units, target, results, pr
   const refCallback = useCallback(() => {
     setTimeout(() => {
       setLoading(false);
-    }, 3000); // Wait for recharts to finish drawing
-  }, []);
+    }, 4000);
+  }, [results.length, unitNames.length, per100Points]);
   const [ref] = useRefCallback(refCallback);
 
   useLayoutEffect(() => {
@@ -82,7 +82,7 @@ const PdfGenerator: React.FC<IPdfGeneratorProps> = ({ units, target, results, pr
     <div className={classes.pdfGenerator}>
       <ThemeProvider theme={lightTheme}>
         <div className={classes.hidden} ref={ref}>
-          <StatsGraphs results={results} unitNames={unitNames} per100Points />
+          <StatsGraphs results={results} unitNames={unitNames} per100Points={per100Points} />
           <CumulativeProbabilityGraphs probabilities={probabilities} unitNames={unitNames} />
           <ProbabilityGraphs probabilities={probabilities} unitNames={unitNames} />
         </div>

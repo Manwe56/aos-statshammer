@@ -25,7 +25,7 @@ export const unitByUuidSelector = createSelector(unitsSelector, unitIndexByUuidS
   _.memoize((uuid: string) => units[findIndex(uuid)]),
 );
 
-export const activeUnit = (unit) =>  ({
+export const activeUnit = (unit) => ({
   ...unit,
   weapon_profiles: unit.weapon_profiles
     .filter((profile) => profile.active)
@@ -38,7 +38,7 @@ export const activeUnit = (unit) =>  ({
 
 export const activeUnitsSelector = createSelector(unitsSelector, (units) =>
   units
-    .filter(unit => unit.active)
+    .filter((unit) => unit.active)
     .map(activeUnit)
     .filter(({ weapon_profiles }) => weapon_profiles && weapon_profiles?.length),
 );
@@ -55,16 +55,23 @@ const sanitizeModifier = (modifier: IModifierInstance) => {
 
 const sanitizeWeaponProfile = (wp: IWeaponProfileParameter) => {
   const { active, attacks, damage, modifiers, num_models, rend, to_hit, to_wound, name } = wp;
+
+  // Ensure all numeric values are valid numbers
+  const safeNum = (val: any, defaultVal = 0) => {
+    const num = Number(val);
+    return Number.isFinite(num) ? num : defaultVal;
+  };
+
   return {
     active,
     attacks,
     damage,
-    modifiers: modifiers.map((m) => sanitizeModifier(m)),
-    num_models: Number(num_models),
-    rend: Number(rend),
-    to_hit: Number(to_hit),
-    to_wound: Number(to_wound),
-    name,
+    modifiers: (modifiers || []).map((m) => sanitizeModifier(m)),
+    num_models: safeNum(num_models, 1),
+    rend: safeNum(rend, 0),
+    to_hit: safeNum(to_hit, 4),
+    to_wound: safeNum(to_wound, 4),
+    name: name || 'Weapon Profile',
   };
 };
 
@@ -79,18 +86,26 @@ const sanitizeUnit = ({
   save,
   attacksModifier,
   modifiers,
-}) => ({
-  name,
-  points: Number(points),
-  health: Number(health),
-  models: Number(models),
-  save: Number(save),
-  attacksModifier: Number(attacksModifier),
-  active,
-  reinforced,
-  modifiers: modifiers.map(sanitizeModifier),
-  weapon_profiles: weapon_profiles.map(sanitizeWeaponProfile),
-});
+}) => {
+  // Ensure all numeric values are valid numbers
+  const safeNum = (val: any, defaultVal = 0) => {
+    const num = Number(val);
+    return Number.isFinite(num) ? num : defaultVal;
+  };
+
+  return {
+    name: name || 'Unnamed Unit',
+    points: safeNum(points, 100),
+    health: safeNum(health, 1),
+    models: safeNum(models, 1),
+    save: safeNum(save, 4),
+    attacksModifier: safeNum(attacksModifier, 0),
+    active: active !== false,
+    reinforced: reinforced || false,
+    modifiers: (modifiers || []).map(sanitizeModifier),
+    weapon_profiles: (weapon_profiles || []).map(sanitizeWeaponProfile),
+  };
+};
 
 export interface ISanitizedUnit {
   name: string;
