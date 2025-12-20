@@ -7,6 +7,7 @@ import Footer from 'components/Footer';
 import Loader from 'components/Loader';
 import FloatedContainer from 'containers/FloatedContainer';
 import ImportExport from 'containers/ImportExport';
+import Rankings from 'containers/Rankings';
 import React, { lazy, Suspense } from 'react';
 import { useSelector } from 'react-redux';
 import { BrowserRouter as Router, Redirect, Route, Switch } from 'react-router-dom';
@@ -15,7 +16,6 @@ import type { IStore } from 'types/store';
 import { ROUTES } from 'utils/urls';
 
 import Wrapper from './Wrapper';
-import Rankings from 'containers/Rankings';
 
 const Home = lazy(() => import('containers/Home'));
 const Simulations = lazy(() => import('containers/Simulations'));
