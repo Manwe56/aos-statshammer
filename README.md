@@ -64,29 +64,26 @@ a number of modifiers (abilities)
 
 ## Installation
 
-Ensure that you have `node`, `pnpm`, and `nodedeamon` installed.
+Ensure that you have `node` and `pnpm` installed.
 
-Install the packages needed for the client (frontend)
+Install the packages:
 
 ```bash
-cd client
 pnpm install
 ```
 
 ## Usage
 
-### `pnpm dev`
+### `pnpm start`
 
-Runs the app in development mode (launches both the express server, and the react frontend).
+Runs the app in development mode.
 
 Open http://localhost:3000 to view it in the browser
 
 ### `pnpm test`
 
-Runs the api tests. Please make sure you run this whenever you make any changes to the api / backend
+Runs the tests.
 
 ### Contributing
 
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
-
-If you make any changes to the API. Please ensure that you have run the unit tests. In addition, if you have added extra functionality to the API (e.g: a new modifier), please add a unit test to the `api/tests/test.units.ts` file that contains this new functionality

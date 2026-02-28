@@ -21,7 +21,7 @@ const useStyles = makeStyles(() => ({
 
 const PdfContainer = () => {
   const classes = useStyles();
-  const { units, modifiers, targetModifiers, stats, simulations } = useSelector(
+  const { modifiers, targetModifiers, stats, simulations } = useSelector(
     (state: IStore) => state,
     _.isEqual,
   );
