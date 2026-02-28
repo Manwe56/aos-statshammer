@@ -57,6 +57,8 @@ export interface IConfigStore {
   exportFilename: string;
   otherPlayerArmy: IUnit[];
   activePlayer: 'Attacker' | 'Defender';
+  /** User-defined rules text for extraction */
+  rules: string;
 }
 
 export interface IBattletomesStore {

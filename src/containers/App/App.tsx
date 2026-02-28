@@ -21,6 +21,7 @@ const Home = lazy(() => import('containers/Home'));
 const Simulations = lazy(() => import('containers/Simulations'));
 const PdfContainer = lazy(() => import('containers/PdfContainer'));
 const About = lazy(() => import('containers/About'));
+const Settings = lazy(() => import('containers/Settings'));
 
 const useStyles = makeStyles(() => ({
   root: {
@@ -65,6 +66,7 @@ const App = () => {
                     <Route exact path={ROUTES.PDF} component={PdfContainer} />
                     <Route exact path={ROUTES.ABOUT} component={About} />
                     <Route exact path={ROUTES.IMPORT} component={ImportExport} />
+                    <Route exact path={ROUTES.SETTINGS} component={Settings} />
 
                     <Redirect exact from="/units" to={ROUTES.HOME} />
                     <Redirect from="/advanced" to={ROUTES.SIMULATIONS} />

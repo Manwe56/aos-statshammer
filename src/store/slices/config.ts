@@ -12,6 +12,7 @@ const INITIAL_STATE: IConfigStore = {
   exportFilename: 'army',
   otherPlayerArmy: [],
   activePlayer: 'Attacker',
+  rules: '',
 };
 
 const toggleDarkMode = (state: IConfigStore) => {
@@ -45,6 +46,15 @@ const setOtherPlayerArmy = (state: IConfigStore, action: { payload: { otherPlaye
   state.activePlayer = state.activePlayer === 'Attacker' ? 'Defender' : 'Attacker';
 };
 
+const updateRules = (state: IConfigStore, action: { payload: { rules: string } }) => {
+  const { rules } = action.payload;
+  state.rules = rules;
+};
+
+const clearRules = (state: IConfigStore) => {
+  state.rules = '';
+};
+
 export const configStore = createSlice({
   name: 'config',
   initialState: INITIAL_STATE,
@@ -56,5 +66,7 @@ export const configStore = createSlice({
     toggleImportReplace,
     updateExportFilename,
     setOtherPlayerArmy,
+    updateRules,
+    clearRules,
   },
 });

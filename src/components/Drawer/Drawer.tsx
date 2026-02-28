@@ -1,7 +1,7 @@
 import { Divider, List, SwipeableDrawer as AppDrawer, Typography, useMediaQuery } from '@material-ui/core';
 import { grey } from '@material-ui/core/colors';
 import { makeStyles, Theme, useTheme } from '@material-ui/core/styles';
-import { EmojiEvents, GetApp, Home, ImportExport, Info, Timeline } from '@material-ui/icons';
+import { EmojiEvents, GetApp, Home, ImportExport, Info, Settings as SettingsIcon, Timeline } from '@material-ui/icons';
 import { useHashMatch, useRouteFind } from 'hooks';
 import preval from 'preval.macro';
 import React, { useCallback, useEffect } from 'react';
@@ -116,6 +116,7 @@ const Drawer = () => {
             selected={page === ROUTES.RANKINGS}
           />
           <MenuLinkItem to={ROUTES.ABOUT} label="About" icon={<Info />} selected={page === ROUTES.ABOUT} />
+          <MenuLinkItem to={ROUTES.SETTINGS} label="Settings" icon={<SettingsIcon />} selected={page === ROUTES.SETTINGS} />
           <Divider className={classes.divider} variant="middle" />
           <ToggleDarkModeItem />
           {isHome && !mobile && <ToggleGraphListItem />}

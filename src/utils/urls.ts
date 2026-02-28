@@ -8,6 +8,7 @@ export const ROUTES = {
   PDF: '/pdf',
   ABOUT: '/about',
   IMPORT: '/import',
+  SETTINGS: '/settings',
 };
 
 export const HASHES = {
