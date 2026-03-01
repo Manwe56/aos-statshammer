@@ -1,7 +1,7 @@
 import { Button, Card, CardContent, TextField, Typography } from '@material-ui/core';
 import { makeStyles } from '@material-ui/core/styles';
 import { Clear, Save } from '@material-ui/icons';
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { configStore, notificationsStore } from 'store/slices';
 import type { IStore } from 'types/store';
@@ -27,6 +27,12 @@ const useStyles = makeStyles((theme) => ({
     gap: theme.spacing(2),
     justifyContent: 'flex-end',
   },
+  uploadButton: {
+    marginRight: 'auto',
+  },
+  helperText: {
+    marginTop: theme.spacing(1),
+  },
 }));
 
 const Settings = () => {
@@ -34,6 +40,24 @@ const Settings = () => {
   const dispatch = useDispatch();
   const rules = useSelector((state: IStore) => state.config.rules);
   const [localRules, setLocalRules] = useState(rules);
+  const isRulesDirty = localRules !== rules;
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const readTextFile = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          resolve(reader.result);
+          return;
+        }
+        reject(new Error('Unable to read file'));
+      };
+      reader.onerror = () => {
+        reject(new Error('Unable to read file'));
+      };
+      reader.readAsText(file);
+    });
 
   const handleSave = () => {
     dispatch(configStore.actions.updateRules({ rules: localRules }));
@@ -54,6 +78,32 @@ const Settings = () => {
         variant: 'info',
       }),
     );
+  };
+
+  const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const [file] = event.target.files ?? [];
+    if (!file) return;
+
+    try {
+      const text = await readTextFile(file);
+      setLocalRules(text);
+      dispatch(configStore.actions.updateRules({ rules: text }));
+      dispatch(
+        notificationsStore.actions.addNotification({
+          message: 'Rules loaded and saved from file',
+          variant: 'success',
+        }),
+      );
+    } catch {
+      dispatch(
+        notificationsStore.actions.addNotification({
+          message: 'Could not read uploaded file',
+          variant: 'error',
+        }),
+      );
+    } finally {
+      event.target.value = '';
+    }
   };
 
   return (
@@ -84,14 +134,37 @@ const Settings = () => {
               setLocalRules(event.target.value);
             }}
           />
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".txt,text/plain"
+            style={{ display: 'none' }}
+            onChange={handleUpload}
+          />
           <div className={classes.buttonContainer}>
-            <Button variant="outlined" startIcon={<Clear />} onClick={handleClear}>
+            <Button
+              className={classes.uploadButton}
+              variant="outlined"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              Upload text file
+            </Button>
+            <Button variant="outlined" startIcon={<Clear />} onClick={handleClear} disabled={!localRules}>
               Clear
             </Button>
-            <Button variant="contained" color="primary" startIcon={<Save />} onClick={handleSave}>
+            <Button
+              variant="contained"
+              color="primary"
+              startIcon={<Save />}
+              onClick={handleSave}
+              disabled={!isRulesDirty}
+            >
               Save
             </Button>
           </div>
+          <Typography variant="caption" color="textSecondary" className={classes.helperText}>
+            Uploading a text file loads and saves rules immediately. Manual edits require clicking Save.
+          </Typography>
         </CardContent>
       </Card>
     </div>
