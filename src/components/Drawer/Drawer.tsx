@@ -11,11 +11,7 @@ import { numUnitsSelector, useRailLgSelector } from 'store/selectors';
 import { HASHES, ROUTES } from 'utils/urls';
 
 import DrawerLogo from './DrawerLogo';
-import ClearTargetItem from './items/ClearTargetItem';
-import ClearUnitsItem from './items/ClearUnitsItem';
 import SocialItems from './items/SocialItems';
-import ToggleDarkModeItem from './items/ToggleDarkModeItem';
-import ToggleGraphListItem from './items/ToggleGraphListItem';
 import MenuLinkItem from './MenuLinkItem';
 import Rail from './Rail';
 
@@ -51,7 +47,6 @@ const Drawer = () => {
 
   const open = useHashMatch(HASHES.DRAWER);
   const [, , page] = useRouteFind(Object.values(ROUTES));
-  const mobile = useMediaQuery(theme.breakpoints.down('sm'));
   const lg = useMediaQuery(theme.breakpoints.up('lg'));
   const md = useMediaQuery(theme.breakpoints.only('md'));
 
@@ -115,23 +110,14 @@ const Drawer = () => {
             icon={<EmojiEvents />}
             selected={page === ROUTES.RANKINGS}
           />
-          <MenuLinkItem to={ROUTES.ABOUT} label="About" icon={<Info />} selected={page === ROUTES.ABOUT} />
+          <MenuLinkItem
+            to={ROUTES.IMPORT}
+            label="Import/Export"
+            icon={<ImportExport />}
+            selected={page === ROUTES.IMPORT}
+          />
           <MenuLinkItem to={ROUTES.SETTINGS} label="Settings" icon={<SettingsIcon />} selected={page === ROUTES.SETTINGS} />
-          <Divider className={classes.divider} variant="middle" />
-          <ToggleDarkModeItem />
-          {isHome && !mobile && <ToggleGraphListItem />}
-          {isHome && (
-            <>
-              <MenuLinkItem
-                to={ROUTES.IMPORT}
-                label="Import/Export"
-                icon={<ImportExport />}
-                selected={page === ROUTES.IMPORT}
-              />
-              <ClearUnitsItem />
-              <ClearTargetItem />
-            </>
-          )}
+          <MenuLinkItem to={ROUTES.ABOUT} label="About" icon={<Info />} selected={page === ROUTES.ABOUT} />
           <Divider className={classes.divider} variant="middle" />
           <SocialItems />
           <Divider className={classes.divider} variant="middle" />

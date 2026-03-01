@@ -1,6 +1,6 @@
-import { Divider, List, SwipeableDrawer as AppDrawer, useMediaQuery } from '@material-ui/core';
-import { makeStyles, Theme, useTheme } from '@material-ui/core/styles';
-import { EmojiEvents, GetApp, Home, ImportExport, Info, Timeline } from '@material-ui/icons';
+import { Divider, List, SwipeableDrawer as AppDrawer } from '@material-ui/core';
+import { makeStyles, Theme } from '@material-ui/core/styles';
+import { EmojiEvents, GetApp, Home, ImportExport, Info, Settings as SettingsIcon, Timeline } from '@material-ui/icons';
 import { useRouteFind } from 'hooks';
 import React from 'react';
 import { useSelector } from 'react-redux';
@@ -8,10 +8,6 @@ import { numUnitsSelector } from 'store/selectors';
 import { ROUTES } from 'utils/urls';
 
 import DrawerLogo from './DrawerLogo';
-import ClearTargetItem from './items/ClearTargetItem';
-import ClearUnitsItem from './items/ClearUnitsItem';
-import ToggleDarkModeItem from './items/ToggleDarkModeItem';
-import ToggleGraphListItem from './items/ToggleGraphListItem';
 import MenuLinkItem from './MenuLinkItem';
 
 const useStyles = makeStyles((theme: Theme) => ({
@@ -38,13 +34,11 @@ const useStyles = makeStyles((theme: Theme) => ({
 }));
 
 const Drawer = () => {
-  const theme = useTheme();
   const classes = useStyles();
 
   const numUnits = useSelector(numUnitsSelector);
 
   const [, , page] = useRouteFind(Object.values(ROUTES));
-  const mobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   const isHome = [ROUTES.HOME, ROUTES.TARGET, ROUTES.DAMAGE, ROUTES.HEALTH].includes(page);
 
@@ -93,23 +87,21 @@ const Drawer = () => {
           selected={page === ROUTES.RANKINGS}
           mini
         />
+        <MenuLinkItem
+          to={ROUTES.IMPORT}
+          label="Import / Export"
+          icon={<ImportExport />}
+          selected={page === ROUTES.IMPORT}
+          mini
+        />
+        <MenuLinkItem
+          to={ROUTES.SETTINGS}
+          label="Settings"
+          icon={<SettingsIcon />}
+          selected={page === ROUTES.SETTINGS}
+          mini
+        />
         <MenuLinkItem to={ROUTES.ABOUT} label="About" icon={<Info />} selected={page === ROUTES.ABOUT} mini />
-        <Divider className={classes.divider} variant="middle" />
-        <ToggleDarkModeItem mini />
-        {isHome && !mobile && <ToggleGraphListItem mini />}
-        {isHome && (
-          <>
-            <MenuLinkItem
-              to={ROUTES.IMPORT}
-              label="Import / Export"
-              icon={<ImportExport />}
-              selected={page === ROUTES.IMPORT}
-              mini
-            />
-            <ClearUnitsItem mini />
-            <ClearTargetItem mini />
-          </>
-        )}
       </List>
     </AppDrawer>
   );

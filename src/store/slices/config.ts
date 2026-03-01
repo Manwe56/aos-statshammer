@@ -13,7 +13,7 @@ const INITIAL_STATE: IConfigStore = {
   otherPlayerArmy: [],
   activePlayer: 'Attacker',
   rules: '',
-  includeChargedVersions: true,
+  importedArmyListText: '',
 };
 
 const toggleDarkMode = (state: IConfigStore) => {
@@ -56,11 +56,11 @@ const clearRules = (state: IConfigStore) => {
   state.rules = '';
 };
 
-const setIncludeChargedVersions = (
+const updateImportedArmyListText = (
   state: IConfigStore,
-  action: { payload: { includeChargedVersions: boolean } },
+  action: { payload: { importedArmyListText: string } },
 ) => {
-  state.includeChargedVersions = action.payload.includeChargedVersions;
+  state.importedArmyListText = action.payload.importedArmyListText;
 };
 
 export const configStore = createSlice({
@@ -76,6 +76,6 @@ export const configStore = createSlice({
     setOtherPlayerArmy,
     updateRules,
     clearRules,
-    setIncludeChargedVersions,
+    updateImportedArmyListText,
   },
 });

@@ -59,8 +59,8 @@ export interface IConfigStore {
   activePlayer: 'Attacker' | 'Defender';
   /** User-defined rules text for extraction */
   rules: string;
-  /** Whether list import/analysis should use charged variants when available */
-  includeChargedVersions: boolean;
+  /** Last army list text pasted in import from list */
+  importedArmyListText: string;
 }
 
 export interface IBattletomesStore {

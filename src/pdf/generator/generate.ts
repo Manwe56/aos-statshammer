@@ -11,7 +11,81 @@ import type { TResult } from 'types/stats';
 import type { ITargetStore } from 'types/store';
 
 import cursor from './cursor';
-import { addGraphs, addHeader, addHR, addPage, addSubHeader, headerColor, margin } from './pdfUtils';
+import {
+  addGraphs,
+  addHeader,
+  addHR,
+  addPage,
+  addSubHeader,
+  headerColor,
+  margin,
+  sectionHeaderColor,
+} from './pdfUtils';
+
+const sanitizeLine = (line: string): string => {
+  let sanitized = line.replace(/^[\s•*-]+/, '').trim();
+  const dashIndex = sanitized.indexOf(' - ');
+  if (dashIndex !== -1) {
+    sanitized = sanitized.substring(dashIndex + 3).trim();
+  }
+  sanitized = sanitized.replace(/\s*\([^)]*\)/g, '').trim();
+  sanitized = sanitized.replace(/\s*\[[^\]]*\]/g, '').trim();
+  return sanitized;
+};
+
+const extractRulesForLine = (searchText: string, rulesText: string): string | null => {
+  if (!searchText || searchText.length < 2) return null;
+  const lines = rulesText.split('\n');
+  const searchPattern = `### ${searchText}`;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (line === searchPattern || line.toLowerCase() === searchPattern.toLowerCase()) {
+      const sectionLines = [lines[i]];
+      for (let j = i + 1; j < lines.length; j++) {
+        const nextLine = lines[j];
+        if (nextLine.trim().match(/^#+\s/)) {
+          break;
+        }
+        sectionLines.push(nextLine);
+      }
+      return sectionLines.join('\n');
+    }
+  }
+  return null;
+};
+
+type TRuleSection = {
+  title: string;
+  content: string;
+};
+
+const getRulesForList = (armyListText: string, rulesText: string): TRuleSection[] => {
+  if (!armyListText || !rulesText) {
+    return [];
+  }
+
+  const foundRules: TRuleSection[] = [];
+  const foundRulesSet = new Set<string>();
+  armyListText.split('\n').forEach((line) => {
+    const sanitized = sanitizeLine(line);
+    if (!sanitized) {
+      return;
+    }
+    const extractedRule = extractRulesForLine(sanitized, rulesText);
+    if (!extractedRule || foundRulesSet.has(extractedRule)) {
+      return;
+    }
+
+    const sectionLines = extractedRule.split('\n');
+    const sectionTitle = sectionLines[0].replace(/^###\s*/, '').trim();
+    const sectionContent = sectionLines.slice(1).join('\n').trim() || '-';
+    foundRules.push({ title: sectionTitle, content: sectionContent });
+    foundRulesSet.add(extractedRule);
+  });
+
+  return foundRules;
+};
 
 const getModifierItems = (modifiers: IModifierInstanceParameter[], isTarget = false): RowInput[] => {
   const state = store.getState();
@@ -33,7 +107,7 @@ const getModifierItems = (modifiers: IModifierInstanceParameter[], isTarget = fa
         {
           content: 'Modifiers',
           colSpan: 6,
-          styles: { halign: 'center', fontStyle: 'bold', fillColor: [240, 240, 240] },
+          styles: { halign: 'center', fontStyle: 'bold', fillColor: sectionHeaderColor, textColor: 20 },
         },
       ],
       ...modifierItems,
@@ -156,6 +230,65 @@ const generateStatsTable = (doc: IJsPDF, results: TResult[], unitNames: string[]
   cursor.incr(20);
 };
 
+const generateImportedListPage = (doc: IJsPDF, importedArmyListText: string) => {
+  const listLines = importedArmyListText.split('\n').map((line) => line.trimEnd());
+
+  if (listLines.every((line) => line.length === 0)) {
+    return;
+  }
+
+  addHeader(doc, 'AoS Statshammer V4 Report');
+  addSubHeader(doc, 'Imported Army List');
+  cursor.incr(8);
+
+  doc.setFontSize(11);
+  const lineHeight = 14;
+  const maxTextWidth = doc.internal.pageSize.getWidth() - margin * 2;
+
+  listLines.forEach((line) => {
+    const textLines = line.length > 0 ? doc.splitTextToSize(line, maxTextWidth) : [''];
+    textLines.forEach((textLine) => {
+      const bottomLimit = doc.internal.pageSize.getHeight() - margin;
+      if (cursor.pos + lineHeight > bottomLimit) {
+        addPage(doc);
+        cursor.incr(20);
+      }
+      doc.text(textLine, margin, cursor.pos);
+      cursor.incr(lineHeight);
+    });
+  });
+
+  doc.setFontSize(12);
+  cursor.incr(12);
+  addHR(doc);
+};
+
+const generateRulesSectionPage = (doc: IJsPDF, importedArmyListText: string, rulesText: string) => {
+  const rulesForList = getRulesForList(importedArmyListText, rulesText);
+  if (rulesForList.length === 0) {
+    return;
+  }
+
+  addPage(doc);
+  cursor.incr(20);
+  addSubHeader(doc, 'This list uses the following rules');
+  cursor.incr(8);
+
+  autoTable(doc, {
+    startY: cursor.pos,
+    head: [['Rule', 'Description']],
+    body: rulesForList.map((rule) => [rule.title, rule.content]),
+    headStyles: { fillColor: headerColor },
+    alternateRowStyles: { fillColor: [246, 248, 255] },
+    styles: { overflow: 'linebreak', valign: 'top' },
+    columnStyles: {
+      0: { cellWidth: 170, fontStyle: 'bold' },
+      1: { cellWidth: 355 },
+    },
+    theme: 'grid',
+  });
+};
+
 const generate = async (
   units: ISanitizedUnit[],
   target: ITargetStore,
@@ -165,6 +298,8 @@ const generate = async (
   statsClassName: string,
   cumulativeClassName: string,
   probabilitiesClassName: string,
+  importedArmyListText = '',
+  rulesText = '',
 ) => {
   // eslint-disable-next-line new-cap
   const doc = new jsPDF('p', 'pt', 'a4') as IJsPDF;
@@ -173,7 +308,14 @@ const generate = async (
   });
   cursor.reset();
   cursor.incr(20);
-  addHeader(doc, 'AoS Statshammer V4 Report');
+  generateImportedListPage(doc, importedArmyListText);
+  if (!importedArmyListText || importedArmyListText.trim().length === 0) {
+    addHeader(doc, 'AoS Statshammer V4 Report');
+  } else {
+    addPage(doc);
+    cursor.incr(20);
+    addHeader(doc, 'AoS Statshammer V4 Report');
+  }
   generateUnits(doc, units);
   if (target && target.modifiers && target.modifiers.length) {
     generateTarget(doc, target);
@@ -204,6 +346,7 @@ const generate = async (
   addSubHeader(doc, 'Probabilities');
   cursor.incr(10);
   await addGraphs(doc, probabilitiesClassName);
+  generateRulesSectionPage(doc, importedArmyListText, rulesText);
   return doc;
 };
 

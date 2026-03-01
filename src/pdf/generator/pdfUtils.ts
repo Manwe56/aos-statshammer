@@ -5,7 +5,8 @@ import type { IJsPDF } from 'types/pdf';
 import cursor from './cursor';
 
 export const margin = 20;
-export const headerColor: [number, number, number] = [51, 171, 159];
+export const headerColor: [number, number, number] = [40, 76, 206];
+export const sectionHeaderColor: [number, number, number] = [196, 201, 241];
 
 export const addHR = (doc: IJsPDF) => {
   doc.line(margin, cursor.pos, doc.internal.pageSize.getWidth() - margin * 2, cursor.pos);

@@ -58,12 +58,10 @@ const ArmyFromList = ({ onLoadArmyFromList }: IArmyFromListProps) => {
   const classes = useStyles();
   const [armyList, setArmyList] = useState('');
   const [extractedRules, setExtractedRules] = useState('');
+  const [includeChargedVersions, setIncludeChargedVersions] = useState(true);
   const dispatch = useDispatch();
   const matchPlay = useSelector(mergedBattletomesSelector);
   const rules = useSelector((state: IStore) => state.config.rules);
-  const includeChargedVersions = useSelector(
-    (state: IStore) => state.config.includeChargedVersions ?? true,
-  );
   const target = useSelector(getSanitizedTargetSelector);
 
   const sanitizeLine = (line: string): string => {
@@ -305,6 +303,8 @@ const ArmyFromList = ({ onLoadArmyFromList }: IArmyFromListProps) => {
       return;
     }
 
+    dispatch(configStore.actions.updateImportedArmyListText({ importedArmyListText: armyList }));
+
     const armyUnits: IArmy = {
       faction: Faction.List,
       label: '',
@@ -444,6 +444,8 @@ const ArmyFromList = ({ onLoadArmyFromList }: IArmyFromListProps) => {
       return;
     }
 
+    dispatch(configStore.actions.updateImportedArmyListText({ importedArmyListText: armyList }));
+
     const lines = armyList.split('\n');
     const foundRules: string[] = [];
     const foundRulesSet = new Set<string>(); // For deduplication
@@ -533,13 +535,7 @@ const ArmyFromList = ({ onLoadArmyFromList }: IArmyFromListProps) => {
             <Switch
               color="primary"
               checked={includeChargedVersions}
-              onChange={(_event, checked) => {
-                dispatch(
-                  configStore.actions.setIncludeChargedVersions({
-                    includeChargedVersions: checked,
-                  }),
-                );
-              }}
+              onChange={(_event, checked) => setIncludeChargedVersions(checked)}
             />
           )}
           label={includeChargedVersions ? 'Use charged versions' : 'Use regular versions'}

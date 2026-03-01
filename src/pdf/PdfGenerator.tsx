@@ -48,17 +48,31 @@ const PdfGenerator: React.FC<IPdfGeneratorProps> = ({ units, target, results, pr
   const mobile = useMediaQuery(theme.breakpoints.down('sm'));
   const unitNames = useSelector(unitNamesSelector, _.isEqual);
   const per100Points = useSelector(statsPer100Points);
+  const importedArmyListText = useSelector((state: IStore) => state.config.importedArmyListText ?? '');
+  const rulesText = useSelector((state: IStore) => state.config.rules ?? '');
 
   const generatePdf = useCallback(
-    () => generate(units, target, results, unitNames, per100Points, 'pdf-copy', 'pdf-cumulative', 'pdf-prob'),
-    [results, target, unitNames, units, per100Points],
+    () =>
+      generate(
+        units,
+        target,
+        results,
+        unitNames,
+        per100Points,
+        'pdf-copy',
+        'pdf-cumulative',
+        'pdf-prob',
+        importedArmyListText,
+        rulesText,
+      ),
+    [results, target, unitNames, units, per100Points, importedArmyListText, rulesText],
   );
 
   const refCallback = useCallback(() => {
     setTimeout(() => {
       setLoading(false);
     }, 4000);
-  }, [results.length, unitNames.length, per100Points]);
+  }, []);
   const [ref] = useRefCallback(refCallback);
 
   useLayoutEffect(() => {
