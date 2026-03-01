@@ -4,10 +4,13 @@ import { FileCopy, ImportExport, Search } from '@material-ui/icons';
 import { lowerCase } from 'lodash';
 import React, { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { mergedBattletomesSelector } from 'store/selectors';
+import StatsController from 'api/core/controllers/statsController';
+import { getSanitizedTargetSelector, mergedBattletomesSelector } from 'store/selectors';
 import { notificationsStore } from 'store/slices';
 import { Faction, IArmy } from 'types/army';
 import type { IStore } from 'types/store';
+import type { IModifierInstanceParameter } from 'types/modifiers';
+import type { IUnitParameter, IWeaponProfileParameter } from 'types/unit';
 
 const useStyles = makeStyles((theme) => ({
   root: {
@@ -58,6 +61,7 @@ const ArmyFromList = ({ onLoadArmyFromList }: IArmyFromListProps) => {
   const dispatch = useDispatch();
   const matchPlay = useSelector(mergedBattletomesSelector);
   const rules = useSelector((state: IStore) => state.config.rules);
+  const target = useSelector(getSanitizedTargetSelector);
   
   const onClick = () => {
     const lowercaseArmylist = lowerCase(armyList);
@@ -141,11 +145,227 @@ const ArmyFromList = ({ onLoadArmyFromList }: IArmyFromListProps) => {
     return null;
   };
 
+  const unitNameForMatch = (name: string): string =>
+    lowerCase(name
+      .replace(/ - .*/g, '')
+      .replace(/,.*/g, '')
+      .replace(/\(.*\)/g, '')
+      .replace(/\[.*\]/g, '')
+      .trim());
+
+  const cloneModifier = <T extends IModifierInstanceParameter>(modifier: T): T => ({
+    ...modifier,
+    options: modifier.options ? { ...modifier.options } : modifier.options,
+  });
+
+  const cloneWeaponProfile = (profile: IWeaponProfileParameter): IWeaponProfileParameter => ({
+    ...profile,
+    modifiers: (profile.modifiers ?? []).map(cloneModifier),
+  });
+
+  const cloneUnit = (unit: IUnitParameter): IUnitParameter => ({
+    ...unit,
+    modifiers: (unit.modifiers ?? []).map(cloneModifier),
+    weapon_profiles: (unit.weapon_profiles ?? []).map(cloneWeaponProfile),
+  });
+
+  const applyReinforced = (unit: IUnitParameter): IUnitParameter => {
+    if (unit.reinforced) {
+      return unit;
+    }
+    const reinforcedUnit = cloneUnit(unit);
+    reinforcedUnit.reinforced = true;
+    reinforcedUnit.name = reinforcedUnit.name.includes(' [R]') ? reinforcedUnit.name : `${reinforcedUnit.name} [R]`;
+    reinforcedUnit.points *= 2;
+    reinforcedUnit.models *= 2;
+    reinforcedUnit.weapon_profiles = (reinforcedUnit.weapon_profiles ?? []).map((weapon) => ({
+      ...weapon,
+      num_models: weapon.num_models * 2,
+    }));
+    return reinforcedUnit;
+  };
+
+  const duplicateChargeBonus = (unit: IUnitParameter): IUnitParameter[] => {
+    if (!unit.weapon_profiles) {
+      return [unit];
+    }
+    const hasChargeBonus = unit.weapon_profiles.some(
+      (profile) => profile.modifiers.some((modifier) => modifier.id === 'BONUS_CHARGE'),
+    );
+    if (!hasChargeBonus) {
+      return [unit];
+    }
+    const charged = {
+      ...cloneUnit(unit),
+      name: `${unit.name} (charged)`,
+      weapon_profiles: unit.weapon_profiles.map((profile) => {
+        if (profile.modifiers.some((modifier) => modifier.id === 'BONUS_CHARGE')) {
+          const chargedModifiers = profile.modifiers
+            .filter((modifier) => modifier.id !== 'BONUS_CHARGE')
+            .map((modifier) => {
+              if (modifier.id === 'MORTAL_WOUNDS') {
+                return {
+                  ...modifier,
+                  options: { ...modifier.options, mortalWounds: `${modifier.options.mortalWounds}+1` },
+                };
+              }
+              return modifier;
+            });
+          return {
+            ...profile,
+            name: profile.name ? `${profile.name} (charged)` : profile.name,
+            damage: `${profile.damage}+1`,
+            modifiers: chargedModifiers,
+          };
+        }
+        return profile;
+      }),
+    };
+    return [charged];
+  };
+
+  const findBestUnitForLine = (sanitizedLine: string): IUnitParameter | null => {
+    const normalizedLine = lowerCase(sanitizedLine.trim());
+    if (!normalizedLine) {
+      return null;
+    }
+    const allUnits = matchPlay.flatMap((army) => army.units);
+    const sortedCandidates = [...allUnits].sort((a, b) => unitNameForMatch(b.name).length - unitNameForMatch(a.name).length);
+    const match = sortedCandidates.find((unit) => {
+      const normalizedUnitName = unitNameForMatch(unit.name);
+      return (
+        normalizedLine === normalizedUnitName
+        || normalizedLine.includes(normalizedUnitName)
+        || normalizedUnitName.includes(normalizedLine)
+      );
+    });
+    return match ?? null;
+  };
+
+  const isChargedVariantName = (name: string): boolean => /\bcharge\b|\bcharged\b/i.test(name);
+
+  const getChargedSiblingUnits = (unit: IUnitParameter): IUnitParameter[] => {
+    const normalizedName = unitNameForMatch(unit.name);
+    return matchPlay
+      .flatMap((army) => army.units)
+      .filter((candidate) => candidate.name !== unit.name)
+      .filter((candidate) => unitNameForMatch(candidate.name) === normalizedName)
+      .filter((candidate) => isChargedVariantName(candidate.name));
+  };
+
+  const sanitizeUnitForStats = (unit: IUnitParameter) => {
+    const safeNum = (value: any, fallback: number) => {
+      const num = Number(value);
+      return Number.isFinite(num) ? num : fallback;
+    };
+
+    return {
+      name: unit.name || 'Unnamed Unit',
+      points: safeNum(unit.points, 100),
+      health: safeNum(unit.health, 1),
+      models: safeNum(unit.models, 1),
+      save: safeNum(unit.save, 4),
+      active: unit.active !== false,
+      reinforced: unit.reinforced || false,
+      attacksModifier: safeNum(unit.attacksModifier, 0),
+      modifiers: (unit.modifiers ?? []).map((modifier) => ({
+        ...modifier,
+        active: modifier.active ?? true,
+      })),
+      weapon_profiles: (unit.weapon_profiles ?? []).map((profile) => ({
+        ...profile,
+        active: profile.active !== false,
+        num_models: safeNum(profile.num_models, 1),
+        to_hit: safeNum(profile.to_hit, 4),
+        to_wound: safeNum(profile.to_wound, 4),
+        rend: safeNum(profile.rend, 0),
+        modifiers: (profile.modifiers ?? []).map((modifier) => ({
+          ...modifier,
+          active: modifier.active ?? true,
+        })),
+      })),
+    };
+  };
+
+  const buildAnalysisTable = (headers: string[], rows: string[][]): string => {
+    const allRows = [headers, ...rows];
+    const columnCount = headers.length;
+    const columnWidths = Array.from({ length: columnCount }, (_, columnIndex) =>
+      allRows.reduce((max, row) => Math.max(max, (row[columnIndex] ?? '').length), 0),
+    );
+
+    const formatRow = (row: string[]) =>
+      row
+        .map((cell, columnIndex) => {
+          const value = cell ?? '';
+          return columnIndex === 0
+            ? value.padEnd(columnWidths[columnIndex], ' ')
+            : value.padStart(columnWidths[columnIndex], ' ');
+        })
+        .join(' | ');
+
+    const headerLine = formatRow(headers);
+    const separator = columnWidths
+      .map((width) => ''.padEnd(width, '-'))
+      .join('-+-');
+    const rowLines = rows.map((row) => formatRow(row));
+    return [headerLine, separator, ...rowLines].join('\n');
+  };
+
+  const buildAnalysisTables = (unitsForAnalysis: IUnitParameter[]): string => {
+    if (unitsForAnalysis.length === 0) {
+      return '';
+    }
+    const occurrences = new Map<string, number>();
+    const uniquelyNamedUnits = unitsForAnalysis.map((unit) => {
+      const next = (occurrences.get(unit.name) ?? 0) + 1;
+      occurrences.set(unit.name, next);
+      return { ...unit, name: `${unit.name} #${next}` };
+    });
+    const sanitizedUnits = uniquelyNamedUnits.map(sanitizeUnitForStats);
+
+    const controller = new StatsController();
+    const { saveResults, healthResults } = controller.compareUnits({
+      units: sanitizedUnits,
+      target,
+      per100Points: false,
+    });
+
+    const damageHeaders = ['Unit', ...saveResults.map((result) => `${result.save}+`)];
+    const damageRows = uniquelyNamedUnits.map((unit) => {
+      const values = saveResults.map((result) => Number(result[unit.name]) || 0);
+      return [unit.name, ...values.map((value) => value.toFixed(2))];
+    });
+    const damageTotals = saveResults.map((result) =>
+      uniquelyNamedUnits
+        .reduce((sum, unit) => sum + (Number(result[unit.name]) || 0), 0)
+        .toFixed(2),
+    );
+    damageRows.push(['TOTAL', ...damageTotals]);
+
+    const healthHeaders = ['Unit', ...healthResults.map((result) => `${result.label}`)];
+    const healthRows = uniquelyNamedUnits.map((unit) => {
+      const values = healthResults.map((result) => Number(result[unit.name]) || 0);
+      return [unit.name, ...values.map((value) => value.toFixed(2))];
+    });
+    const healthTotals = healthResults.map((result) =>
+      uniquelyNamedUnits
+        .reduce((sum, unit) => sum + (Number(result[unit.name]) || 0), 0)
+        .toFixed(2),
+    );
+    healthRows.push(['TOTAL', ...healthTotals]);
+
+    const damageTable = buildAnalysisTable(damageHeaders, damageRows);
+    const healthTable = buildAnalysisTable(healthHeaders, healthRows);
+
+    return `Damage output by save:\n${damageTable}\n\nEffective health by rend:\n${healthTable}`;
+  };
+
   const onExtractRules = () => {
-    if (!rules || !armyList) {
+    if (!armyList) {
       dispatch(
         notificationsStore.actions.addNotification({
-          message: 'Please provide both an army list and rules text',
+          message: 'Please provide an army list',
           variant: 'warning',
         }),
       );
@@ -155,22 +375,52 @@ const ArmyFromList = ({ onLoadArmyFromList }: IArmyFromListProps) => {
     const lines = armyList.split('\n');
     const foundRules: string[] = [];
     const foundRulesSet = new Set<string>(); // For deduplication
+    const unitsForAnalysis: IUnitParameter[] = [];
     let matchCount = 0;
 
-    lines.forEach((line) => {
+    lines.forEach((line, index) => {
       const sanitized = sanitizeLine(line);
       if (sanitized) {
-        const extractedRule = extractRulesForLine(sanitized, rules);
-        if (extractedRule && !foundRulesSet.has(extractedRule)) {
-          foundRules.push(extractedRule);
-          foundRulesSet.add(extractedRule);
-          matchCount++;
+        const foundUnit = findBestUnitForLine(sanitized);
+        if (foundUnit) {
+          const shouldReinforce = /reinforced/i.test(lines[index + 1] ?? '');
+          const chargedSiblings = getChargedSiblingUnits(foundUnit).map((unit) =>
+            shouldReinforce ? applyReinforced(unit) : cloneUnit(unit),
+          );
+
+          if (chargedSiblings.length > 0) {
+            chargedSiblings.forEach((chargedUnit) => {
+              unitsForAnalysis.push(...duplicateChargeBonus(chargedUnit));
+            });
+          } else {
+            const preparedUnit = shouldReinforce ? applyReinforced(foundUnit) : cloneUnit(foundUnit);
+            unitsForAnalysis.push(...duplicateChargeBonus(preparedUnit));
+          }
+        }
+
+        if (rules) {
+          const extractedRule = extractRulesForLine(sanitized, rules);
+          if (extractedRule && !foundRulesSet.has(extractedRule)) {
+            foundRules.push(extractedRule);
+            foundRulesSet.add(extractedRule);
+            matchCount++;
+          }
         }
       }
     });
 
+    const analysisTable = buildAnalysisTables(unitsForAnalysis);
+
+    const sections = [armyList];
+    if (analysisTable) {
+      sections.push(`List analysis:\n${analysisTable}`);
+    }
     if (foundRules.length > 0) {
-      setExtractedRules(foundRules.join('\n\n'));
+      sections.push(`The following rules apply to this list:\n\n${foundRules.join('\n\n')}`);
+    }
+    setExtractedRules(sections.join('\n\n'));
+
+    if (foundRules.length > 0) {
       dispatch(
         notificationsStore.actions.addNotification({
           message: `Found ${matchCount} matching rule${matchCount > 1 ? 's' : ''}`,
@@ -178,10 +428,9 @@ const ArmyFromList = ({ onLoadArmyFromList }: IArmyFromListProps) => {
         }),
       );
     } else {
-      setExtractedRules('');
       dispatch(
         notificationsStore.actions.addNotification({
-          message: 'No matching rules found',
+          message: rules ? 'No matching rules found' : 'List analyzed',
           variant: 'info',
         }),
       );
@@ -241,7 +490,7 @@ const ArmyFromList = ({ onLoadArmyFromList }: IArmyFromListProps) => {
             component="span"
             onClick={onExtractRules}
           >
-            Extract Rules
+              Analyze list
           </Button>
         )}
       </div>
@@ -249,7 +498,7 @@ const ArmyFromList = ({ onLoadArmyFromList }: IArmyFromListProps) => {
       {extractedRules && (
         <div className={classes.extractedRulesContainer}>
           <div className={classes.extractedRulesHeader}>
-            <Typography variant="h6">Extracted Rules</Typography>
+            <Typography variant="h6">Analysis</Typography>
             <IconButton onClick={copyToClipboard} size="small" title="Copy to clipboard">
               <FileCopy />
             </IconButton>
