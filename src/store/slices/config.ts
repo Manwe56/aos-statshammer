@@ -13,6 +13,7 @@ const INITIAL_STATE: IConfigStore = {
   otherPlayerArmy: [],
   activePlayer: 'Attacker',
   rules: '',
+  includeChargedVersions: true,
 };
 
 const toggleDarkMode = (state: IConfigStore) => {
@@ -55,6 +56,13 @@ const clearRules = (state: IConfigStore) => {
   state.rules = '';
 };
 
+const setIncludeChargedVersions = (
+  state: IConfigStore,
+  action: { payload: { includeChargedVersions: boolean } },
+) => {
+  state.includeChargedVersions = action.payload.includeChargedVersions;
+};
+
 export const configStore = createSlice({
   name: 'config',
   initialState: INITIAL_STATE,
@@ -68,5 +76,6 @@ export const configStore = createSlice({
     setOtherPlayerArmy,
     updateRules,
     clearRules,
+    setIncludeChargedVersions,
   },
 });

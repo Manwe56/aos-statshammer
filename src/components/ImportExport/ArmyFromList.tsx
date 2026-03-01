@@ -1,4 +1,4 @@
-import { Button, IconButton, TextField, Typography } from '@material-ui/core';
+import { Button, FormControlLabel, IconButton, Switch, TextField, Typography } from '@material-ui/core';
 import { makeStyles } from '@material-ui/core/styles';
 import { FileCopy, ImportExport, Search } from '@material-ui/icons';
 import { lowerCase } from 'lodash';
@@ -6,7 +6,7 @@ import React, { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import StatsController from 'api/core/controllers/statsController';
 import { getSanitizedTargetSelector, mergedBattletomesSelector } from 'store/selectors';
-import { notificationsStore } from 'store/slices';
+import { configStore, notificationsStore } from 'store/slices';
 import { Faction, IArmy } from 'types/army';
 import type { IStore } from 'types/store';
 import type { IModifierInstanceParameter } from 'types/modifiers';
@@ -61,44 +61,14 @@ const ArmyFromList = ({ onLoadArmyFromList }: IArmyFromListProps) => {
   const dispatch = useDispatch();
   const matchPlay = useSelector(mergedBattletomesSelector);
   const rules = useSelector((state: IStore) => state.config.rules);
+  const includeChargedVersions = useSelector(
+    (state: IStore) => state.config.includeChargedVersions ?? true,
+  );
   const target = useSelector(getSanitizedTargetSelector);
-  
-  const onClick = () => {
-    const lowercaseArmylist = lowerCase(armyList);
-    const armyUnits: IArmy = {
-      faction: Faction.List,
-      label: '',
-      units: [],
-    };
-    matchPlay.forEach((army) => {
-      army.units.forEach((unit) => {
-        const strippedUnitName = lowerCase(unit.name
-          .replace(/ - .*/g, '')
-          .replace(/,.*/g, '')
-          .replace(/\(.*\)/g, '')
-          .replace(/\[.*\]/g, '')
-          .trim());
-        if (lowercaseArmylist.includes(strippedUnitName)) {
-          armyUnits.units.push(unit);
-        }
-      });
-    });
-    if (armyUnits.units.length > 0) {
-      onLoadArmyFromList(armyUnits);
-    } else {
-      dispatch(
-        notificationsStore.actions.addNotification({
-          message:
-            'Sorry, not finding any known unit. Did you check your faction was already available in the factions that can be imported? ',
-          variant: 'error',
-        }),
-      );
-    }
-  };
 
   const sanitizeLine = (line: string): string => {
     // Remove bullet points
-    let sanitized = line.replace(/^[\s•\-\*]+/,'').trim();
+    let sanitized = line.replace(/^[\s•*-]+/, '').trim();
     
     // Remove text before ' - ' (e.g., "Manifestation Lore - Manifestations" -> "Manifestations")
     const dashIndex = sanitized.indexOf(' - ');
@@ -185,6 +155,16 @@ const ArmyFromList = ({ onLoadArmyFromList }: IArmyFromListProps) => {
     return reinforcedUnit;
   };
 
+  const removeChargeBonus = (unit: IUnitParameter): IUnitParameter => ({
+    ...cloneUnit(unit),
+    weapon_profiles: (unit.weapon_profiles ?? []).map((profile) => {
+      if (profile.modifiers.some((modifier) => modifier.id === 'BONUS_CHARGE')) {
+        return { ...profile, modifiers: profile.modifiers.filter((modifier) => modifier.id !== 'BONUS_CHARGE') };
+      }
+      return profile;
+    }),
+  });
+
   const duplicateChargeBonus = (unit: IUnitParameter): IUnitParameter[] => {
     if (!unit.weapon_profiles) {
       return [unit];
@@ -224,6 +204,25 @@ const ArmyFromList = ({ onLoadArmyFromList }: IArmyFromListProps) => {
     return [charged];
   };
 
+  const applyChargePreference = (
+    unit: IUnitParameter,
+    includeCharged: boolean,
+  ): IUnitParameter[] => {
+    const hasChargeBonus = (unit.weapon_profiles ?? []).some((profile) =>
+      profile.modifiers.some((modifier) => modifier.id === 'BONUS_CHARGE'),
+    );
+
+    if (!hasChargeBonus) {
+      return [cloneUnit(unit)];
+    }
+
+    if (includeCharged) {
+      return duplicateChargeBonus(unit);
+    }
+
+    return [removeChargeBonus(unit)];
+  };
+
   const findBestUnitForLine = (sanitizedLine: string): IUnitParameter | null => {
     const normalizedLine = lowerCase(sanitizedLine.trim());
     if (!normalizedLine) {
@@ -251,6 +250,79 @@ const ArmyFromList = ({ onLoadArmyFromList }: IArmyFromListProps) => {
       .filter((candidate) => candidate.name !== unit.name)
       .filter((candidate) => unitNameForMatch(candidate.name) === normalizedName)
       .filter((candidate) => isChargedVariantName(candidate.name));
+  };
+
+  const getRegularSiblingUnits = (unit: IUnitParameter): IUnitParameter[] => {
+    const normalizedName = unitNameForMatch(unit.name);
+    return matchPlay
+      .flatMap((army) => army.units)
+      .filter((candidate) => candidate.name !== unit.name)
+      .filter((candidate) => unitNameForMatch(candidate.name) === normalizedName)
+      .filter((candidate) => !isChargedVariantName(candidate.name));
+  };
+
+  const getUnitsForLine = (
+    line: string,
+    nextLine: string,
+    includeCharged: boolean,
+  ): IUnitParameter[] => {
+    const sanitized = sanitizeLine(line);
+    if (!sanitized) {
+      return [];
+    }
+
+    const foundUnit = findBestUnitForLine(sanitized);
+    if (!foundUnit) {
+      return [];
+    }
+
+    const shouldReinforce = /reinforced/i.test(nextLine ?? '');
+
+    const chargedSiblings = getChargedSiblingUnits(foundUnit);
+    const regularSiblings = getRegularSiblingUnits(foundUnit);
+    const siblingPool = includeCharged ? chargedSiblings : regularSiblings;
+
+    const preferredUnits = siblingPool.length > 0 ? siblingPool : [foundUnit];
+    return preferredUnits.flatMap((unit) => {
+      const preparedUnit = shouldReinforce ? applyReinforced(unit) : cloneUnit(unit);
+      return applyChargePreference(preparedUnit, includeCharged);
+    });
+  };
+
+  const getUnitsFromArmyList = (includeCharged: boolean): IUnitParameter[] => {
+    const lines = armyList.split('\n');
+    return lines.flatMap((line, index) => getUnitsForLine(line, lines[index + 1] ?? '', includeCharged));
+  };
+
+  const onClick = () => {
+    if (!armyList) {
+      dispatch(
+        notificationsStore.actions.addNotification({
+          message: 'Please provide an army list',
+          variant: 'warning',
+        }),
+      );
+      return;
+    }
+
+    const armyUnits: IArmy = {
+      faction: Faction.List,
+      label: '',
+      units: getUnitsFromArmyList(includeChargedVersions),
+    };
+
+    if (armyUnits.units.length > 0) {
+      onLoadArmyFromList(armyUnits);
+      return;
+    }
+
+    dispatch(
+      notificationsStore.actions.addNotification({
+        message:
+          'Sorry, not finding any known unit. Did you check your faction was already available in the factions that can be imported? ',
+        variant: 'error',
+      }),
+    );
   };
 
   const sanitizeUnitForStats = (unit: IUnitParameter) => {
@@ -375,29 +447,12 @@ const ArmyFromList = ({ onLoadArmyFromList }: IArmyFromListProps) => {
     const lines = armyList.split('\n');
     const foundRules: string[] = [];
     const foundRulesSet = new Set<string>(); // For deduplication
-    const unitsForAnalysis: IUnitParameter[] = [];
+    const unitsForAnalysis: IUnitParameter[] = getUnitsFromArmyList(includeChargedVersions);
     let matchCount = 0;
 
-    lines.forEach((line, index) => {
+    lines.forEach((line) => {
       const sanitized = sanitizeLine(line);
       if (sanitized) {
-        const foundUnit = findBestUnitForLine(sanitized);
-        if (foundUnit) {
-          const shouldReinforce = /reinforced/i.test(lines[index + 1] ?? '');
-          const chargedSiblings = getChargedSiblingUnits(foundUnit).map((unit) =>
-            shouldReinforce ? applyReinforced(unit) : cloneUnit(unit),
-          );
-
-          if (chargedSiblings.length > 0) {
-            chargedSiblings.forEach((chargedUnit) => {
-              unitsForAnalysis.push(...duplicateChargeBonus(chargedUnit));
-            });
-          } else {
-            const preparedUnit = shouldReinforce ? applyReinforced(foundUnit) : cloneUnit(foundUnit);
-            unitsForAnalysis.push(...duplicateChargeBonus(preparedUnit));
-          }
-        }
-
         if (rules) {
           const extractedRule = extractRulesForLine(sanitized, rules);
           if (extractedRule && !foundRulesSet.has(extractedRule)) {
@@ -473,6 +528,22 @@ const ArmyFromList = ({ onLoadArmyFromList }: IArmyFromListProps) => {
         }}
       />
       <div className={classes.buttonContainer}>
+        <FormControlLabel
+          control={(
+            <Switch
+              color="primary"
+              checked={includeChargedVersions}
+              onChange={(_event, checked) => {
+                dispatch(
+                  configStore.actions.setIncludeChargedVersions({
+                    includeChargedVersions: checked,
+                  }),
+                );
+              }}
+            />
+          )}
+          label={includeChargedVersions ? 'Use charged versions' : 'Use regular versions'}
+        />
         <Button
           variant="contained"
           startIcon={<ImportExport />}
