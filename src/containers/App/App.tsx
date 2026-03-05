@@ -7,6 +7,7 @@ import Footer from 'components/Footer';
 import Loader from 'components/Loader';
 import FloatedContainer from 'containers/FloatedContainer';
 import ImportExport from 'containers/ImportExport';
+import ListsAnalysis from 'containers/ListsAnalysis';
 import Rankings from 'containers/Rankings';
 import React, { lazy, Suspense } from 'react';
 import { useSelector } from 'react-redux';
@@ -66,6 +67,7 @@ const App = () => {
                     <Route exact path={ROUTES.PDF} component={PdfContainer} />
                     <Route exact path={ROUTES.ABOUT} component={About} />
                     <Route exact path={ROUTES.IMPORT} component={ImportExport} />
+                    <Route exact path={ROUTES.LISTS_ANALYSIS} component={ListsAnalysis} />
                     <Route exact path={ROUTES.SETTINGS} component={Settings} />
 
                     <Redirect exact from="/units" to={ROUTES.HOME} />

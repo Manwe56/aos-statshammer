@@ -1,8 +1,8 @@
 import { Button, FormControlLabel, IconButton, Switch, TextField, Typography } from '@material-ui/core';
 import { makeStyles } from '@material-ui/core/styles';
-import { FileCopy, ImportExport, Search } from '@material-ui/icons';
+import { FileCopy, GetApp, ImportExport, Search } from '@material-ui/icons';
 import { lowerCase } from 'lodash';
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import StatsController from 'api/core/controllers/statsController';
 import { getSanitizedTargetSelector, mergedBattletomesSelector } from 'store/selectors';
@@ -20,8 +20,16 @@ const useStyles = makeStyles((theme) => ({
   },
   buttonContainer: {
     display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
     gap: theme.spacing(1),
     marginTop: theme.spacing(1),
+  },
+  hiddenInput: {
+    display: 'none',
+  },
+  pdfListCounter: {
+    marginLeft: theme.spacing(1),
   },
   extractedRulesContainer: {
     marginTop: theme.spacing(2),
@@ -58,15 +66,53 @@ const ArmyFromList = ({ onLoadArmyFromList }: IArmyFromListProps) => {
   const classes = useStyles();
   const [armyList, setArmyList] = useState('');
   const [extractedRules, setExtractedRules] = useState('');
+  const [pdfLists, setPdfLists] = useState<string[]>([]);
+  const [activePdfListIndex, setActivePdfListIndex] = useState(0);
+  const [isPdfLoading, setIsPdfLoading] = useState(false);
   const [includeChargedVersions, setIncludeChargedVersions] = useState(true);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
+  const pdfjsLibRef = useRef<any>(null);
   const dispatch = useDispatch();
   const matchPlay = useSelector(mergedBattletomesSelector);
   const rules = useSelector((state: IStore) => state.config.rules);
   const target = useSelector(getSanitizedTargetSelector);
 
+  const normalizePdfCharacters = (value: string): string => value
+    .replace(/\u00A0/g, ' ')
+    .replace(/ﬃ/g, 'ffi')
+    .replace(/ﬄ/g, 'ffl')
+    .replace(/ﬀ/g, 'ff')
+    .replace(/ﬁ/g, 'fi')
+    .replace(/ﬂ/g, 'fl')
+    .replace(/ﬅ/g, 'ft')
+    .replace(/ﬆ/g, 'st')
+    .replace(/[Ɵθ]/g, 'ti')
+    .replace(/Ʃ/g, 'tt')
+    .replace(/ƞ/g, 'tf');
+
+  const normalizeBrokenLigatures = (value: string): string => {
+    let normalized = value;
+    let previousValue = '';
+
+    while (normalized !== previousValue) {
+      previousValue = normalized;
+      normalized = normalized.replace(
+        /([A-Za-z]{2,})\s+(ffi|ffl|ff|fi|fl|ft|st|ti|tt|tf)\s+([A-Za-z]{1,})/g,
+        '$1$2$3',
+      );
+    }
+
+    return normalized;
+  };
+
+  const normalizePdfExtractedText = (value: string): string =>
+    normalizeBrokenLigatures(normalizePdfCharacters(value))
+      .replace(/\s+/g, ' ')
+      .trim();
+
   const sanitizeLine = (line: string): string => {
     // Remove bullet points
-    let sanitized = line.replace(/^[\s•*-]+/, '').trim();
+    let sanitized = normalizePdfExtractedText(line).replace(/^[\s•*-]+/, '').trim();
     
     // Remove text before ' - ' (e.g., "Manifestation Lore - Manifestations" -> "Manifestations")
     const dashIndex = sanitized.indexOf(' - ');
@@ -81,17 +127,110 @@ const ArmyFromList = ({ onLoadArmyFromList }: IArmyFromListProps) => {
     return sanitized;
   };
 
+  const stripUnitCountPrefix = (value: string): string => value
+    .replace(/^\s*\d+\s*[x×]\s*/i, '')
+    .replace(/^\s*x\s*\d+\s*/i, '')
+    .replace(/^\s*\d+\s+/, '')
+    .trim();
+
+  const normalizeForMatch = (value: string): string =>
+    lowerCase(stripUnitCountPrefix(normalizePdfExtractedText(value))
+      .replace(/ - .*/g, '')
+      .replace(/,.*/g, '')
+      .replace(/\(.*\)/g, '')
+      .replace(/\[.*\]/g, '')
+      .trim());
+
+  const compactForMatch = (value: string): string => value.replace(/\s+/g, '');
+
+  const isDirectMatch = (left: string, right: string): boolean =>
+    left === right || left.includes(right) || right.includes(left);
+
+  const levenshteinDistanceWithin = (source: string, target: string, maxDistance: number): number => {
+    if (source === target) {
+      return 0;
+    }
+
+    if (Math.abs(source.length - target.length) > maxDistance) {
+      return maxDistance + 1;
+    }
+
+    let previousRow = Array.from({ length: target.length + 1 }, (_, index) => index);
+
+    for (let sourceIndex = 1; sourceIndex <= source.length; sourceIndex++) {
+      const currentRow = [sourceIndex];
+      let minValueInRow = sourceIndex;
+
+      for (let targetIndex = 1; targetIndex <= target.length; targetIndex++) {
+        const substitutionCost = source[sourceIndex - 1] === target[targetIndex - 1] ? 0 : 1;
+        const value = Math.min(
+          previousRow[targetIndex] + 1,
+          currentRow[targetIndex - 1] + 1,
+          previousRow[targetIndex - 1] + substitutionCost,
+        );
+        currentRow[targetIndex] = value;
+        if (value < minValueInRow) {
+          minValueInRow = value;
+        }
+      }
+
+      if (minValueInRow > maxDistance) {
+        return maxDistance + 1;
+      }
+
+      previousRow = currentRow;
+    }
+
+    return previousRow[target.length];
+  };
+
+  const isTolerantMatch = (left: string, right: string): boolean => {
+    if (!left || !right) {
+      return false;
+    }
+
+    if (isDirectMatch(left, right)) {
+      return true;
+    }
+
+    const compactLeft = compactForMatch(left);
+    const compactRight = compactForMatch(right);
+
+    if (!compactLeft || !compactRight) {
+      return false;
+    }
+
+    if (isDirectMatch(compactLeft, compactRight)) {
+      return true;
+    }
+
+    const minLength = Math.min(compactLeft.length, compactRight.length);
+    if (minLength < 8) {
+      return false;
+    }
+
+    const maxLength = Math.max(compactLeft.length, compactRight.length);
+    const maxDistance = Math.min(3, Math.max(1, Math.floor(maxLength * 0.12)));
+    return levenshteinDistanceWithin(compactLeft, compactRight, maxDistance) <= maxDistance;
+  };
+
   const extractRulesForLine = (searchText: string, rulesText: string): string | null => {
-    if (!searchText || searchText.length < 2) return null;
+    const normalizedSearchText = normalizeForMatch(searchText);
+    if (!normalizedSearchText || normalizedSearchText.length < 2) return null;
     
     const lines = rulesText.split('\n');
-    const searchPattern = `### ${searchText}`;
     
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim();
+      const sectionTitleMatch = line.match(/^###\s+(.+)$/);
+      if (!sectionTitleMatch) {
+        continue;
+      }
+      const sectionTitle = sectionTitleMatch[1]?.trim() ?? '';
+      const normalizedSectionTitle = normalizeForMatch(sectionTitle);
       
-      // Check if this line matches our search pattern
-      if (line === searchPattern || line.toLowerCase() === searchPattern.toLowerCase()) {
+      // Check if this section title matches our search pattern
+      if (isTolerantMatch(normalizedSectionTitle, normalizedSearchText)) {
         // Found the start of our section, now extract until the next # section
         const sectionLines = [lines[i]];
         
@@ -113,13 +252,34 @@ const ArmyFromList = ({ onLoadArmyFromList }: IArmyFromListProps) => {
     return null;
   };
 
-  const unitNameForMatch = (name: string): string =>
-    lowerCase(name
-      .replace(/ - .*/g, '')
-      .replace(/,.*/g, '')
-      .replace(/\(.*\)/g, '')
-      .replace(/\[.*\]/g, '')
-      .trim());
+  const getRuleSearchCandidates = (line: string): string[] => {
+    const sanitized = sanitizeLine(line);
+    if (!sanitized) {
+      return [];
+    }
+
+    const splitCandidates = sanitized
+      .split(/[:|,\\/]/g)
+      .map((candidate) => candidate.trim())
+      .filter((candidate) => candidate.length > 1);
+
+    const allCandidates = [sanitized, ...splitCandidates]
+      .flatMap((candidate) => [candidate, stripUnitCountPrefix(candidate)])
+      .map((candidate) => candidate.replace(/\s+/g, ' ').trim())
+      .filter((candidate) => candidate.length > 1);
+
+    const seen = new Set<string>();
+    return allCandidates.filter((candidate) => {
+      const normalized = candidate.toLowerCase();
+      if (seen.has(normalized)) {
+        return false;
+      }
+      seen.add(normalized);
+      return true;
+    });
+  };
+
+  const unitNameForMatch = (name: string): string => normalizeForMatch(name);
 
   const cloneModifier = <T extends IModifierInstanceParameter>(modifier: T): T => ({
     ...modifier,
@@ -222,21 +382,22 @@ const ArmyFromList = ({ onLoadArmyFromList }: IArmyFromListProps) => {
   };
 
   const findBestUnitForLine = (sanitizedLine: string): IUnitParameter | null => {
-    const normalizedLine = lowerCase(sanitizedLine.trim());
+    const normalizedLine = normalizeForMatch(sanitizedLine);
     if (!normalizedLine) {
       return null;
     }
     const allUnits = matchPlay.flatMap((army) => army.units);
-    const sortedCandidates = [...allUnits].sort((a, b) => unitNameForMatch(b.name).length - unitNameForMatch(a.name).length);
-    const match = sortedCandidates.find((unit) => {
-      const normalizedUnitName = unitNameForMatch(unit.name);
-      return (
-        normalizedLine === normalizedUnitName
-        || normalizedLine.includes(normalizedUnitName)
-        || normalizedUnitName.includes(normalizedLine)
-      );
-    });
-    return match ?? null;
+    const sortedCandidates = [...allUnits]
+      .map((unit) => ({ unit, normalizedUnitName: unitNameForMatch(unit.name) }))
+      .sort((a, b) => b.normalizedUnitName.length - a.normalizedUnitName.length);
+
+    const directMatch = sortedCandidates.find(({ normalizedUnitName }) => isDirectMatch(normalizedLine, normalizedUnitName));
+    if (directMatch) {
+      return directMatch.unit;
+    }
+
+    const tolerantMatch = sortedCandidates.find(({ normalizedUnitName }) => isTolerantMatch(normalizedLine, normalizedUnitName));
+    return tolerantMatch?.unit ?? null;
   };
 
   const isChargedVariantName = (name: string): boolean => /\bcharge\b|\bcharged\b/i.test(name);
@@ -287,9 +448,183 @@ const ArmyFromList = ({ onLoadArmyFromList }: IArmyFromListProps) => {
     });
   };
 
-  const getUnitsFromArmyList = (includeCharged: boolean): IUnitParameter[] => {
-    const lines = armyList.split('\n');
+  const getUnitsFromArmyList = (armyListText: string, includeCharged: boolean): IUnitParameter[] => {
+    const lines = armyListText.split('\n');
     return lines.flatMap((line, index) => getUnitsForLine(line, lines[index + 1] ?? '', includeCharged));
+  };
+
+  const getPdfJsLib = async (): Promise<any> => {
+    if (pdfjsLibRef.current) {
+      return pdfjsLibRef.current;
+    }
+
+    const [pdfjsLib] = await Promise.all([
+      import('pdfjs-dist/legacy/build/pdf'),
+    ]);
+
+    const publicUrl = (process.env.PUBLIC_URL || '').replace(/\/$/, '');
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `${publicUrl}/pdf.worker.min.js`;
+    pdfjsLibRef.current = pdfjsLib;
+    return pdfjsLib;
+  };
+
+  const readFileAsArrayBuffer = (file: File): Promise<ArrayBuffer> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (reader.result instanceof ArrayBuffer) {
+          resolve(reader.result);
+          return;
+        }
+        reject(new Error('Unable to read file'));
+      };
+      reader.onerror = () => reject(new Error('Unable to read file'));
+      reader.readAsArrayBuffer(file);
+    });
+
+  const extractTextFromPdfPage = async (page: any): Promise<string> => {
+    const textContent = await page.getTextContent();
+    const positionedItems = (textContent.items ?? [])
+      .filter((item: any) => typeof item.str === 'string' && item.str.trim().length > 0)
+      .map((item: any) => ({
+        text: normalizePdfCharacters(item.str).trim(),
+        x: Array.isArray(item.transform) ? Number(item.transform[4]) || 0 : 0,
+        y: Array.isArray(item.transform) ? Number(item.transform[5]) || 0 : 0,
+        hasEOL: Boolean(item.hasEOL),
+      }));
+
+    if (positionedItems.length === 0) {
+      return '';
+    }
+
+    const sortedItems = [...positionedItems].sort((left, right) => {
+      const yDifference = right.y - left.y;
+      if (Math.abs(yDifference) > 2) {
+        return yDifference;
+      }
+      return left.x - right.x;
+    });
+
+    const lines: string[] = [];
+    let currentY = sortedItems[0].y;
+    let currentLine: Array<{ text: string; x: number }> = [];
+
+    const flushLine = () => {
+      if (currentLine.length === 0) {
+        return;
+      }
+      const lineText = normalizePdfExtractedText([...currentLine]
+        .sort((left, right) => left.x - right.x)
+        .map((item) => item.text)
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim());
+      if (lineText) {
+        lines.push(lineText);
+      }
+      currentLine = [];
+    };
+
+    sortedItems.forEach((item) => {
+      if (Math.abs(item.y - currentY) > 2) {
+        flushLine();
+        currentY = item.y;
+      }
+
+      currentLine.push({ text: item.text, x: item.x });
+
+      if (item.hasEOL) {
+        flushLine();
+      }
+    });
+
+    flushLine();
+
+    return lines
+      .join('\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  };
+
+  const extractListsFromPdf = async (file: File): Promise<string[]> => {
+    const pdfjsLib = await getPdfJsLib();
+    const arrayBuffer = await readFileAsArrayBuffer(file);
+    const loadingTask = pdfjsLib.getDocument({
+      data: new Uint8Array(arrayBuffer),
+    });
+    const pdfDocument = await loadingTask.promise;
+
+    const extractedLists: string[] = [];
+    for (let pageNumber = 1; pageNumber <= pdfDocument.numPages; pageNumber += 1) {
+      const page = await pdfDocument.getPage(pageNumber);
+      const pageText = await extractTextFromPdfPage(page);
+      if (pageText.length > 0) {
+        extractedLists.push(pageText);
+      }
+    }
+
+    return extractedLists;
+  };
+
+  const applyPdfListAtIndex = (index: number) => {
+    if (index < 0 || index >= pdfLists.length) {
+      return;
+    }
+
+    setActivePdfListIndex(index);
+    setArmyList(pdfLists[index]);
+    setExtractedRules('');
+  };
+
+  const onGoToPreviousPdfList = () => applyPdfListAtIndex(activePdfListIndex - 1);
+
+  const onGoToNextPdfList = () => applyPdfListAtIndex(activePdfListIndex + 1);
+
+  const onUploadPdfLists = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const inputElement = event.currentTarget;
+    const [file] = inputElement.files ?? [];
+    if (!file) {
+      return;
+    }
+
+    try {
+      setIsPdfLoading(true);
+      const extractedLists = await extractListsFromPdf(file);
+
+      if (extractedLists.length === 0) {
+        setPdfLists([]);
+        setActivePdfListIndex(0);
+        dispatch(
+          notificationsStore.actions.addNotification({
+            message: 'No list text could be extracted from this PDF',
+            variant: 'warning',
+          }),
+        );
+        return;
+      }
+
+      setPdfLists(extractedLists);
+      setActivePdfListIndex(0);
+      setArmyList(extractedLists[0]);
+      setExtractedRules('');
+
+      dispatch(
+        notificationsStore.actions.addNotification({
+          message: `Loaded ${extractedLists.length} list${extractedLists.length > 1 ? 's' : ''} from PDF`,
+          variant: 'success',
+        }),
+      );
+    } catch {
+      dispatch(
+        notificationsStore.actions.addNotification({
+          message: 'Could not extract lists from PDF',
+          variant: 'error',
+        }),
+      );
+    } finally {
+      setIsPdfLoading(false);
+      inputElement.value = '';
+    }
   };
 
   const onClick = () => {
@@ -308,7 +643,7 @@ const ArmyFromList = ({ onLoadArmyFromList }: IArmyFromListProps) => {
     const armyUnits: IArmy = {
       faction: Faction.List,
       label: '',
-      units: getUnitsFromArmyList(includeChargedVersions),
+      units: getUnitsFromArmyList(armyList, includeChargedVersions),
     };
 
     if (armyUnits.units.length > 0) {
@@ -433,6 +768,65 @@ const ArmyFromList = ({ onLoadArmyFromList }: IArmyFromListProps) => {
     return `Damage output by save:\n${damageTable}\n\nEffective health by rend:\n${healthTable}`;
   };
 
+  const buildListAnalysisOutput = (listText: string) => {
+    const lines = listText.split('\n');
+    const foundRules: string[] = [];
+    const foundRulesSet = new Set<string>(); // For deduplication
+    const unitsForAnalysis: IUnitParameter[] = getUnitsFromArmyList(listText, includeChargedVersions);
+    let matchCount = 0;
+
+    lines.forEach((line) => {
+      if (!rules) {
+        return;
+      }
+
+      const ruleSearchCandidates = getRuleSearchCandidates(line);
+      ruleSearchCandidates.forEach((candidate) => {
+        const extractedRule = extractRulesForLine(candidate, rules);
+        if (extractedRule && !foundRulesSet.has(extractedRule)) {
+          foundRules.push(extractedRule);
+          foundRulesSet.add(extractedRule);
+          matchCount++;
+        }
+      });
+    });
+
+    const analysisTable = buildAnalysisTables(unitsForAnalysis);
+
+    const sections = [listText];
+    if (analysisTable) {
+      sections.push(`List analysis:\n${analysisTable}`);
+    }
+    if (foundRules.length > 0) {
+      sections.push(`The following rules apply to this list:\n\n${foundRules.join('\n\n')}`);
+    }
+
+    return {
+      outputText: sections.join('\n\n'),
+      foundRulesCount: foundRules.length,
+      matchCount,
+    };
+  };
+
+  const notifyRulesExtractionResult = (foundRulesCount: number, matchCount: number) => {
+    if (foundRulesCount > 0) {
+      dispatch(
+        notificationsStore.actions.addNotification({
+          message: `Found ${matchCount} matching rule${matchCount > 1 ? 's' : ''}`,
+          variant: 'success',
+        }),
+      );
+      return;
+    }
+
+    dispatch(
+      notificationsStore.actions.addNotification({
+        message: rules ? 'No matching rules found' : 'List analyzed',
+        variant: 'info',
+      }),
+    );
+  };
+
   const onExtractRules = () => {
     if (!armyList) {
       dispatch(
@@ -446,52 +840,9 @@ const ArmyFromList = ({ onLoadArmyFromList }: IArmyFromListProps) => {
 
     dispatch(configStore.actions.updateImportedArmyListText({ importedArmyListText: armyList }));
 
-    const lines = armyList.split('\n');
-    const foundRules: string[] = [];
-    const foundRulesSet = new Set<string>(); // For deduplication
-    const unitsForAnalysis: IUnitParameter[] = getUnitsFromArmyList(includeChargedVersions);
-    let matchCount = 0;
-
-    lines.forEach((line) => {
-      const sanitized = sanitizeLine(line);
-      if (sanitized) {
-        if (rules) {
-          const extractedRule = extractRulesForLine(sanitized, rules);
-          if (extractedRule && !foundRulesSet.has(extractedRule)) {
-            foundRules.push(extractedRule);
-            foundRulesSet.add(extractedRule);
-            matchCount++;
-          }
-        }
-      }
-    });
-
-    const analysisTable = buildAnalysisTables(unitsForAnalysis);
-
-    const sections = [armyList];
-    if (analysisTable) {
-      sections.push(`List analysis:\n${analysisTable}`);
-    }
-    if (foundRules.length > 0) {
-      sections.push(`The following rules apply to this list:\n\n${foundRules.join('\n\n')}`);
-    }
-    setExtractedRules(sections.join('\n\n'));
-
-    if (foundRules.length > 0) {
-      dispatch(
-        notificationsStore.actions.addNotification({
-          message: `Found ${matchCount} matching rule${matchCount > 1 ? 's' : ''}`,
-          variant: 'success',
-        }),
-      );
-    } else {
-      dispatch(
-        notificationsStore.actions.addNotification({
-          message: rules ? 'No matching rules found' : 'List analyzed',
-          variant: 'info',
-        }),
-      );
-    }
+    const analysisOutput = buildListAnalysisOutput(armyList);
+    setExtractedRules(analysisOutput.outputText);
+    notifyRulesExtractionResult(analysisOutput.foundRulesCount, analysisOutput.matchCount);
   };
 
   const copyToClipboard = () => {
@@ -517,8 +868,108 @@ const ArmyFromList = ({ onLoadArmyFromList }: IArmyFromListProps) => {
     }
   };
 
+  const removeControlCharacters = (value: string): string =>
+    Array.from(value).filter((character) => character.charCodeAt(0) >= 32).join('');
+
+  const sanitizeFilename = (value: string): string => removeControlCharacters(value)
+    .trim()
+    .replace(/[<>:"/\\|?*]/g, '')
+    .replace(/\s+/g, ' ')
+    .slice(0, 120);
+
+  const stripArmyPointsPrefix = (value: string): string => value
+    .replace(/^\s*\d+\s*\/\s*\d+\s*(?:pts?|points?)?\s*/i, '')
+    .trim();
+
+  const stripListBulletPrefix = (value: string): string => value
+    .replace(/^\s*[•*-]+\s*/, '')
+    .trim();
+
+  const getListAnalysisFilename = (listText: string): string => {
+    const firstNonEmptyLine = listText
+      .split('\n')
+      .map((line) => line.trim())
+      .find((line) => line.length > 0) ?? 'list-analysis';
+    const lineWithoutBulletPrefix = stripListBulletPrefix(firstNonEmptyLine) || firstNonEmptyLine;
+    const lineWithoutPointsPrefix = stripArmyPointsPrefix(lineWithoutBulletPrefix) || lineWithoutBulletPrefix;
+    return sanitizeFilename(lineWithoutPointsPrefix) || 'list-analysis';
+  };
+
+  const downloadAnalysisText = (analysisText: string, listText: string) => {
+    if (!analysisText) {
+      return;
+    }
+
+    const filename = getListAnalysisFilename(listText);
+
+    const analysisBlob = new Blob([analysisText], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(analysisBlob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `${filename}.txt`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
+
+    dispatch(
+      notificationsStore.actions.addNotification({
+        message: 'Analysis downloaded',
+        variant: 'success',
+      }),
+    );
+  };
+
+  const downloadAnalysis = () => {
+    if (!extractedRules) {
+      return;
+    }
+
+    downloadAnalysisText(extractedRules, armyList);
+  };
+
+  const onAnalyzeDownloadAndNext = () => {
+    if (!armyList) {
+      dispatch(
+        notificationsStore.actions.addNotification({
+          message: 'Please provide an army list',
+          variant: 'warning',
+        }),
+      );
+      return;
+    }
+
+    dispatch(configStore.actions.updateImportedArmyListText({ importedArmyListText: armyList }));
+
+    const analysisOutput = buildListAnalysisOutput(armyList);
+    setExtractedRules(analysisOutput.outputText);
+    notifyRulesExtractionResult(analysisOutput.foundRulesCount, analysisOutput.matchCount);
+    downloadAnalysisText(analysisOutput.outputText, armyList);
+
+    if (pdfLists.length > 0 && activePdfListIndex < pdfLists.length - 1) {
+      applyPdfListAtIndex(activePdfListIndex + 1);
+      return;
+    }
+
+    if (pdfLists.length > 0) {
+      dispatch(
+        notificationsStore.actions.addNotification({
+          message: 'Reached last PDF list',
+          variant: 'info',
+        }),
+      );
+    }
+  };
+
   return (
     <div className={classes.root}>
+      <input
+        ref={pdfInputRef}
+        type="file"
+        accept=".pdf,application/pdf"
+        className={classes.hiddenInput}
+        onChange={onUploadPdfLists}
+      />
       <TextField
         id="army-list-input"
         label="army list"
@@ -547,7 +998,7 @@ const ArmyFromList = ({ onLoadArmyFromList }: IArmyFromListProps) => {
           component="span"
           onClick={onClick}
         >
-          Import from list
+          Import this list to current player
         </Button>
         {rules && (
           <Button
@@ -560,15 +1011,62 @@ const ArmyFromList = ({ onLoadArmyFromList }: IArmyFromListProps) => {
               Analyze list
           </Button>
         )}
+        <Button
+          variant="outlined"
+          component="span"
+          onClick={() => pdfInputRef.current?.click()}
+          disabled={isPdfLoading}
+        >
+          {isPdfLoading ? 'Loading PDF lists...' : 'Load lists from PDF'}
+        </Button>
+        {pdfLists.length > 0 && (
+          <>
+            {rules && (
+              <Button
+                variant="contained"
+                color="secondary"
+                component="span"
+                onClick={onAnalyzeDownloadAndNext}
+                disabled={isPdfLoading}
+              >
+                Analyze + Download + Next
+              </Button>
+            )}
+            <Button
+              variant="outlined"
+              component="span"
+              onClick={onGoToPreviousPdfList}
+              disabled={activePdfListIndex === 0 || isPdfLoading}
+            >
+              Previous list
+            </Button>
+            <Button
+              variant="outlined"
+              component="span"
+              onClick={onGoToNextPdfList}
+              disabled={activePdfListIndex >= pdfLists.length - 1 || isPdfLoading}
+            >
+              Next list
+            </Button>
+            <Typography variant="caption" className={classes.pdfListCounter}>
+              {`PDF list ${activePdfListIndex + 1}/${pdfLists.length}`}
+            </Typography>
+          </>
+        )}
       </div>
       
       {extractedRules && (
         <div className={classes.extractedRulesContainer}>
           <div className={classes.extractedRulesHeader}>
             <Typography variant="h6">Analysis</Typography>
-            <IconButton onClick={copyToClipboard} size="small" title="Copy to clipboard">
-              <FileCopy />
-            </IconButton>
+            <div>
+              <IconButton onClick={downloadAnalysis} size="small" title="Download as .txt">
+                <GetApp />
+              </IconButton>
+              <IconButton onClick={copyToClipboard} size="small" title="Copy to clipboard">
+                <FileCopy />
+              </IconButton>
+            </div>
           </div>
           <div className={classes.extractedRulesText}>
             {extractedRules}

@@ -1,6 +1,6 @@
 import { Divider, List, SwipeableDrawer as AppDrawer } from '@material-ui/core';
 import { makeStyles, Theme } from '@material-ui/core/styles';
-import { EmojiEvents, GetApp, Home, ImportExport, Info, Settings as SettingsIcon, Timeline } from '@material-ui/icons';
+import { EmojiEvents, GetApp, Home, ImportExport, Info, Search, Settings as SettingsIcon, Timeline } from '@material-ui/icons';
 import { useRouteFind } from 'hooks';
 import React from 'react';
 import { useSelector } from 'react-redux';
@@ -92,6 +92,13 @@ const Drawer = () => {
           label="Import / Export"
           icon={<ImportExport />}
           selected={page === ROUTES.IMPORT}
+          mini
+        />
+        <MenuLinkItem
+          to={ROUTES.LISTS_ANALYSIS}
+          label="Lists analysis"
+          icon={<Search />}
+          selected={page === ROUTES.LISTS_ANALYSIS}
           mini
         />
         <MenuLinkItem

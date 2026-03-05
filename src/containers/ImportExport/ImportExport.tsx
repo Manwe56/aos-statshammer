@@ -8,7 +8,6 @@ import {
 } from '@material-ui/core';
 import { makeStyles } from '@material-ui/core/styles';
 import BetaTag from 'components/BetaTag';
-import ArmyFromList from 'components/ImportExport/ArmyFromList';
 import ArmySelector from 'components/ImportExport/ArmySelector';
 import BSDataUnits from 'components/ImportExport/BSDataUnits';
 import ExportArmyItem from 'components/ImportExport/ExportArmyItem';
@@ -165,7 +164,6 @@ const ImportExport = () => {
       }),
     );
   };
-  const loadActiveArmy = (army: IArmy) => loadUnitsWithStatus(army.units, true, true, Faction.List);
   const loadInactiveArmy = (army: IArmy) => loadUnitsWithStatus(army.units, true, false, Faction.List);
 
   const toggleReplace = () => {
@@ -216,8 +214,7 @@ const ImportExport = () => {
           <Typography variant="h5">Import army</Typography>
           <Typography variant="caption">
             You can import units from here. Either from a file you exported previously, either from a
-            pre-built selection within the application. You can also import an army list by directly copy
-            pasting the text of your list in the text area bellow and click on the import from list button.
+            pre-built selection within the application.
           </Typography>
           <div>
             <Switch onChange={toggleReplace} checked={config.importReplace} />
@@ -226,10 +223,6 @@ const ImportExport = () => {
           <div className={classes.flexRow}>
             <ImportArmy onArmyLoad={loadUnits} text="Import units from a file" />
             <ArmySelector onClick={loadInactiveArmy} armies={sortedMatchPlays} label="Import Faction" />
-          </div>
-          <Divider className={classes.divider} />
-          <div className={classes.flexRow}>
-            <ArmyFromList onLoadArmyFromList={loadActiveArmy} />
           </div>
         </Card>
         <Divider className={classes.divider} />

@@ -8,6 +8,7 @@ export const ROUTES = {
   PDF: '/pdf',
   ABOUT: '/about',
   IMPORT: '/import',
+  LISTS_ANALYSIS: '/lists-analysis',
   SETTINGS: '/settings',
 };
 

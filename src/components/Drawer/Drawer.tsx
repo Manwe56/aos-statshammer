@@ -1,7 +1,7 @@
 import { Divider, List, SwipeableDrawer as AppDrawer, Typography, useMediaQuery } from '@material-ui/core';
 import { grey } from '@material-ui/core/colors';
 import { makeStyles, Theme, useTheme } from '@material-ui/core/styles';
-import { EmojiEvents, GetApp, Home, ImportExport, Info, Settings as SettingsIcon, Timeline } from '@material-ui/icons';
+import { EmojiEvents, GetApp, Home, ImportExport, Info, Search, Settings as SettingsIcon, Timeline } from '@material-ui/icons';
 import { useHashMatch, useRouteFind } from 'hooks';
 import preval from 'preval.macro';
 import React, { useCallback, useEffect } from 'react';
@@ -115,6 +115,12 @@ const Drawer = () => {
             label="Import/Export"
             icon={<ImportExport />}
             selected={page === ROUTES.IMPORT}
+          />
+          <MenuLinkItem
+            to={ROUTES.LISTS_ANALYSIS}
+            label="Lists analysis"
+            icon={<Search />}
+            selected={page === ROUTES.LISTS_ANALYSIS}
           />
           <MenuLinkItem to={ROUTES.SETTINGS} label="Settings" icon={<SettingsIcon />} selected={page === ROUTES.SETTINGS} />
           <MenuLinkItem to={ROUTES.ABOUT} label="About" icon={<Info />} selected={page === ROUTES.ABOUT} />
