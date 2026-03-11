@@ -1,10 +1,123 @@
 import { Button, Card, CardContent, FormControlLabel, Switch, TextField, Typography } from '@material-ui/core';
 import { makeStyles } from '@material-ui/core/styles';
-import { Clear, Save } from '@material-ui/icons';
-import React, { useRef, useState } from 'react';
+import { Clear, ExitToApp, Save } from '@material-ui/icons';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { configStore, notificationsStore } from 'store/slices';
+import { authStore, configStore, notificationsStore } from 'store/slices';
 import type { IStore } from 'types/store';
+
+const GOOGLE_IDENTITY_SCRIPT_SRC = 'https://accounts.google.com/gsi/client';
+
+interface IGoogleCredentialResponse {
+  credential?: string;
+}
+
+interface IGoogleJwtPayload {
+  sub?: string;
+  email?: string;
+  email_verified?: boolean;
+  name?: string;
+  given_name?: string;
+  family_name?: string;
+  picture?: string;
+  exp?: number;
+  iat?: number;
+}
+
+interface IGoogleIdentityApi {
+  accounts?: {
+    id: {
+      initialize: (configuration: {
+        client_id: string;
+        callback: (response: IGoogleCredentialResponse) => void;
+      }) => void;
+      renderButton: (
+        parent: HTMLElement,
+        options: {
+          theme: 'outline' | 'filled_blue' | 'filled_black';
+          size: 'small' | 'medium' | 'large';
+          text?: string;
+          shape?: 'rectangular' | 'pill';
+          width?: number;
+        },
+      ) => void;
+      disableAutoSelect: () => void;
+    };
+  };
+}
+
+type TGoogleWindow = Window & {
+  google?: IGoogleIdentityApi;
+  __googleIdentityScriptPromise__?: Promise<void>;
+};
+
+const getGoogleWindow = (): TGoogleWindow => window as TGoogleWindow;
+
+const decodeGoogleCredential = (credential: string): IGoogleJwtPayload | null => {
+  try {
+    const payloadPart = credential.split('.')[1];
+    if (!payloadPart) return null;
+
+    const normalizedPayload = payloadPart.replace(/-/g, '+').replace(/_/g, '/');
+    const paddingLength = (4 - (normalizedPayload.length % 4)) % 4;
+    const paddedPayload = `${normalizedPayload}${'='.repeat(paddingLength)}`;
+    return JSON.parse(window.atob(paddedPayload)) as IGoogleJwtPayload;
+  } catch {
+    return null;
+  }
+};
+
+const loadGoogleIdentityScript = (): Promise<void> => {
+  const googleWindow = getGoogleWindow();
+  if (googleWindow.google?.accounts?.id) {
+    return Promise.resolve();
+  }
+
+  if (googleWindow.__googleIdentityScriptPromise__) {
+    return googleWindow.__googleIdentityScriptPromise__;
+  }
+
+  const scriptPromise = new Promise<void>((resolve, reject) => {
+    const existingScript = document.querySelector(`script[src="${GOOGLE_IDENTITY_SCRIPT_SRC}"]`) as HTMLScriptElement | null;
+
+    const waitUntilReady = (remainingChecks = 20) => {
+      if (googleWindow.google?.accounts?.id) {
+        resolve();
+        return;
+      }
+
+      if (remainingChecks <= 0) {
+        reject(new Error('Google Identity Services API is not available'));
+        return;
+      }
+
+      window.setTimeout(() => waitUntilReady(remainingChecks - 1), 100);
+    };
+
+    if (existingScript) {
+      existingScript.addEventListener('load', () => waitUntilReady(), { once: true });
+      existingScript.addEventListener('error', () => reject(new Error('Failed to load Google Identity Services script')), {
+        once: true,
+      });
+      waitUntilReady();
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = GOOGLE_IDENTITY_SCRIPT_SRC;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => waitUntilReady();
+    script.onerror = () => reject(new Error('Failed to load Google Identity Services script'));
+    document.body.appendChild(script);
+  }).catch((error: Error) => {
+    delete googleWindow.__googleIdentityScriptPromise__;
+    throw error;
+  });
+
+  googleWindow.__googleIdentityScriptPromise__ = scriptPromise;
+  return scriptPromise;
+};
 
 const useStyles = makeStyles((theme) => ({
   root: {
@@ -33,6 +146,29 @@ const useStyles = makeStyles((theme) => ({
   helperText: {
     marginTop: theme.spacing(1),
   },
+  authRow: {
+    marginTop: theme.spacing(1),
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: theme.spacing(2),
+    flexWrap: 'wrap',
+  },
+  authUserInfo: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: theme.spacing(1.5),
+  },
+  authAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: '50%',
+    objectFit: 'cover',
+  },
+  authButtonWrap: {
+    marginTop: theme.spacing(1),
+    minHeight: 44,
+  },
 }));
 
 const Settings = () => {
@@ -41,9 +177,13 @@ const Settings = () => {
   const rules = useSelector((state: IStore) => state.config.rules);
   const darkMode = useSelector((state: IStore) => state.config.darkMode);
   const desktopGraphList = useSelector((state: IStore) => state.config.desktopGraphList);
+  const auth = useSelector((state: IStore) => state.auth);
   const [localRules, setLocalRules] = useState(rules);
+  const [googleAuthError, setGoogleAuthError] = useState<string | null>(null);
   const isRulesDirty = localRules !== rules;
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const googleButtonRef = useRef<HTMLDivElement>(null);
+  const googleClientId = process.env.REACT_APP_GOOGLE_CLIENT_ID ?? '';
 
   const readTextFile = (file: File): Promise<string> =>
     new Promise((resolve, reject) => {
@@ -108,6 +248,115 @@ const Settings = () => {
     }
   };
 
+  const handleGoogleCredential = useCallback((response: IGoogleCredentialResponse) => {
+    const credential = response.credential;
+    if (!credential) {
+      setGoogleAuthError('Google sign-in did not return a credential. Please try again.');
+      dispatch(
+        notificationsStore.actions.addNotification({
+          message: 'Google sign-in failed. Missing credential response.',
+          variant: 'error',
+        }),
+      );
+      return;
+    }
+
+    const payload = decodeGoogleCredential(credential);
+    if (!payload?.sub || !payload?.email) {
+      setGoogleAuthError('Could not read profile information from Google credential.');
+      dispatch(
+        notificationsStore.actions.addNotification({
+          message: 'Google sign-in failed. Invalid credential payload.',
+          variant: 'error',
+        }),
+      );
+      return;
+    }
+
+    dispatch(
+      authStore.actions.signInWithGoogle({
+        idToken: credential,
+        tokenIssuedAt: payload.iat ? payload.iat * 1000 : null,
+        tokenExpiresAt: payload.exp ? payload.exp * 1000 : null,
+        user: {
+          id: payload.sub,
+          email: payload.email,
+          emailVerified: Boolean(payload.email_verified),
+          name: payload.name || payload.email,
+          givenName: payload.given_name || '',
+          familyName: payload.family_name || '',
+          picture: payload.picture || '',
+        },
+      }),
+    );
+
+    setGoogleAuthError(null);
+    dispatch(
+      notificationsStore.actions.addNotification({
+        message: 'Signed in with Google',
+        variant: 'success',
+      }),
+    );
+  }, [dispatch]);
+
+  const handleGoogleSignOut = () => {
+    dispatch(authStore.actions.signOut());
+    getGoogleWindow().google?.accounts?.id?.disableAutoSelect?.();
+    dispatch(
+      notificationsStore.actions.addNotification({
+        message: 'Signed out from Google',
+        variant: 'info',
+      }),
+    );
+  };
+
+  useEffect(() => {
+    if (!googleClientId || auth.isAuthenticated) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const setupGoogleAuth = async () => {
+      try {
+        await loadGoogleIdentityScript();
+        if (cancelled) return;
+
+        const googleIdentity = getGoogleWindow().google?.accounts?.id;
+        if (!googleIdentity || !googleButtonRef.current) {
+          setGoogleAuthError('Google authentication is unavailable right now.');
+          return;
+        }
+
+        googleIdentity.initialize({
+          client_id: googleClientId,
+          callback: handleGoogleCredential,
+        });
+
+        googleButtonRef.current.innerHTML = '';
+        googleIdentity.renderButton(googleButtonRef.current, {
+          theme: darkMode ? 'filled_black' : 'outline',
+          size: 'large',
+          text: 'signin_with',
+          shape: 'pill',
+          width: 280,
+        });
+
+        setGoogleAuthError(null);
+      } catch {
+        if (!cancelled) {
+          setGoogleAuthError('Could not load Google authentication. Please refresh and try again.');
+        }
+      }
+    };
+
+    setupGoogleAuth();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [auth.isAuthenticated, darkMode, googleClientId, handleGoogleCredential]);
+
   return (
     <div className={classes.root}>
       <Typography variant="h4" className={classes.title}>
@@ -135,6 +384,54 @@ const Settings = () => {
             )}
             label="Display desktop graphs as list (instead of tabs)"
           />
+        </CardContent>
+      </Card>
+
+      <Card className={classes.card}>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>
+            Authentication
+          </Typography>
+          <Typography variant="body2" color="textSecondary" paragraph>
+            Sign in with Google to unlock authenticated services. The login token and profile are saved in application
+            state.
+          </Typography>
+
+          {!googleClientId && (
+            <Typography variant="body2" color="error">
+              Set REACT_APP_GOOGLE_CLIENT_ID to enable Google sign-in.
+            </Typography>
+          )}
+
+          {googleClientId && auth.isAuthenticated && auth.user && (
+            <div className={classes.authRow}>
+              <div className={classes.authUserInfo}>
+                {auth.user.picture && <img className={classes.authAvatar} src={auth.user.picture} alt="Google profile" />}
+                <div>
+                  <Typography variant="subtitle1">{auth.user.name}</Typography>
+                  <Typography variant="body2" color="textSecondary">
+                    {auth.user.email}
+                  </Typography>
+                  {auth.tokenExpiresAt && (
+                    <Typography variant="caption" color="textSecondary">
+                      {`Token expires: ${new Date(auth.tokenExpiresAt).toLocaleString()}`}
+                    </Typography>
+                  )}
+                </div>
+              </div>
+              <Button variant="outlined" color="secondary" startIcon={<ExitToApp />} onClick={handleGoogleSignOut}>
+                Sign out
+              </Button>
+            </div>
+          )}
+
+          {googleClientId && !auth.isAuthenticated && <div className={classes.authButtonWrap} ref={googleButtonRef} />}
+
+          {googleAuthError && (
+            <Typography variant="body2" color="error" className={classes.helperText}>
+              {googleAuthError}
+            </Typography>
+          )}
         </CardContent>
       </Card>
 

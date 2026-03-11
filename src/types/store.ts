@@ -63,12 +63,32 @@ export interface IConfigStore {
   importedArmyListText: string;
 }
 
+export interface IGoogleAuthUser {
+  id: string;
+  email: string;
+  emailVerified: boolean;
+  name: string;
+  givenName: string;
+  familyName: string;
+  picture: string;
+}
+
+export interface IAuthStore {
+  isAuthenticated: boolean;
+  provider: 'google' | null;
+  idToken: string | null;
+  tokenIssuedAt: number | null;
+  tokenExpiresAt: number | null;
+  user: IGoogleAuthUser | null;
+}
+
 export interface IBattletomesStore {
   battletomes: IArmy[];
   rankingFaction: Faction;
 }
 
 export interface IStore {
+  auth: IAuthStore;
   modifiers: IModifiersStore;
   targetModifiers: ITargetModifiersStore;
   units: IUnitStore;

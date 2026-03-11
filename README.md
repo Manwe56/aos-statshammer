@@ -84,6 +84,16 @@ Open http://localhost:3000 to view it in the browser
 
 Runs the tests.
 
+## Configuration
+
+Create a `.env.local` file to configure optional runtime settings:
+
+```bash
+REACT_APP_GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
+```
+
+`REACT_APP_GOOGLE_CLIENT_ID` enables Google sign-in from the Settings page.
+
 ### Contributing
 
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
