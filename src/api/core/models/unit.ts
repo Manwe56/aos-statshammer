@@ -36,18 +36,27 @@ class Unit {
     this.models = unit.models;
     this.save = unit.save;
     this.modifiers = unit.modifiers;
-    this.weaponProfiles = unit.weapon_profiles?.map((profile) => {
-      if (profile instanceof WeaponProfile) return profile;
-      return new WeaponProfile(
-        profile.num_models,
-        profile.attacks,
-        profile.to_hit,
-        profile.to_wound,
-        profile.rend,
-        profile.damage,
-        profile.modifiers,
-      );
-    });
+    this.weaponProfiles = (unit.weapon_profiles ?? []).reduce<WeaponProfile[]>((acc, profile) => {
+      try {
+        if (profile instanceof WeaponProfile) {
+          acc.push(profile);
+          return acc;
+        }
+
+        acc.push(new WeaponProfile(
+          profile.num_models,
+          profile.attacks,
+          profile.to_hit,
+          profile.to_wound,
+          profile.rend,
+          profile.damage,
+          profile.modifiers,
+        ));
+      } catch {
+        // Ignore invalid weapon profile values (e.g. non-dice textual rules)
+      }
+      return acc;
+    }, []);
   }
 
   /**
