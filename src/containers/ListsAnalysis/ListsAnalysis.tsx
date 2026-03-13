@@ -4,7 +4,7 @@ import ArmyFromList from 'components/ImportExport/ArmyFromList';
 import React, { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useHistory } from 'react-router-dom';
-import { configSelector } from 'store/selectors';
+import { activePlayer, configSelector, otherPlayerArmy, unitsSelector } from 'store/selectors';
 import { configStore, notificationsStore, unitsStore } from 'store/slices';
 import { Faction, IArmy } from 'types/army';
 import { IUnitParameter } from 'types/unit';
@@ -36,6 +36,9 @@ const ListsAnalysis = () => {
   const history = useHistory();
   const dispatch = useDispatch();
   const config = useSelector(configSelector);
+  const activeArmy = useSelector(activePlayer);
+  const units = useSelector(unitsSelector);
+  const opponentUnits = useSelector(otherPlayerArmy);
 
   const compareString = (a, b) => 0 - (a < b ? 1 : -1);
   const compareUnit = (a, b) => compareString(a.name, b.name);
@@ -91,6 +94,13 @@ const ListsAnalysis = () => {
     dispatch(configStore.actions.toggleImportReplace());
   };
 
+  const switchPlayer = () => {
+    const nextUnits = [...opponentUnits];
+    const currentUnits = [...units];
+    dispatch(unitsStore.actions.replaceUnits({ units: nextUnits }));
+    dispatch(configStore.actions.setOtherPlayerArmy({ otherPlayerArmy: currentUnits }));
+  };
+
   useEffect(() => {
     scrollToTop(true);
   });
@@ -108,7 +118,11 @@ const ListsAnalysis = () => {
             {`${config.importReplace ? 'Replace all units' : 'Add units to existing units'}`}
           </div>
           <div className={classes.flexRow}>
-            <ArmyFromList onLoadArmyFromList={loadActiveArmy} />
+            <ArmyFromList
+              onLoadArmyFromList={loadActiveArmy}
+              activePlayer={activeArmy}
+              onSwitchPlayer={switchPlayer}
+            />
           </div>
         </Card>
       </div>

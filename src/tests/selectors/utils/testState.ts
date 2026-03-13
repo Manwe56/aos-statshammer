@@ -1,4 +1,5 @@
 import type {
+  IAuthStore,
   IBattletomesStore,
   IConfigStore,
   IModifiersStore,
@@ -10,6 +11,7 @@ import type {
   ITargetStore,
   IUnitStore,
 } from 'types/store';
+import { Faction } from 'types/army';
 
 import { unit1, unit2, unit3, unit4 } from './testUnits';
 
@@ -137,6 +139,8 @@ export const stats: IStatsStore = {
   payload: [],
   damageResults: [],
   effectiveHealthResults: [],
+  rankingDamageResults: [],
+  rankingEffectiveHealthResults: [],
 };
 
 export const simulations: ISimulationsStore = {
@@ -147,6 +151,15 @@ export const simulations: ISimulationsStore = {
 
 export const notifications: INotificationsStore = [];
 
+export const auth: IAuthStore = {
+  isAuthenticated: false,
+  provider: null,
+  idToken: null,
+  tokenIssuedAt: null,
+  tokenExpiresAt: null,
+  user: null,
+};
+
 export const config: IConfigStore = {
   darkMode: false,
   desktopGraphList: false,
@@ -155,14 +168,39 @@ export const config: IConfigStore = {
   importReplace: true,
   exportFilename: 'aos-stathammer-army',
   otherPlayerArmy: [],
-  activePlayer: 'Attacker',
+  activePlayer: 'Self',
+  rules: '',
+  listAnalysisByPlayer: {
+    Self: {
+      armyListText: '',
+      analysisText: '',
+      assistant: {
+        messages: [],
+        prompt: '',
+        open: false,
+        contextText: '',
+      },
+    },
+    Opponent: {
+      armyListText: '',
+      analysisText: '',
+      assistant: {
+        messages: [],
+        prompt: '',
+        open: false,
+        contextText: '',
+      },
+    },
+  },
 };
 
 export const battletomes: IBattletomesStore = {
   battletomes: [],
+  rankingFaction: Faction.All,
 };
 
 export const state: IStore = {
+  auth,
   battletomes,
   modifiers,
   targetModifiers,

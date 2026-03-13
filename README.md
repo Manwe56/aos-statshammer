@@ -90,9 +90,28 @@ Create a `.env.local` file to configure optional runtime settings:
 
 ```bash
 REACT_APP_GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
+REACT_APP_LISTS_CHAT_ENDPOINT=/.netlify/functions/gemini-chat
 ```
 
 `REACT_APP_GOOGLE_CLIENT_ID` enables Google sign-in from the Settings page.
+`REACT_APP_LISTS_CHAT_ENDPOINT` is optional and defaults to `/.netlify/functions/gemini-chat`.
+
+When deployed on Netlify, configure these server-side environment variables:
+
+```bash
+GEMINI_API_KEY=your-google-ai-api-key
+GEMINI_MODEL=gemini-2.0-flash
+GEMINI_SYSTEM_CONTEXT=Optional default assistant context
+GOOGLE_OAUTH_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
+```
+
+`GEMINI_API_KEY` must stay server-side only (never in frontend env variables).
+
+For local testing of `/.netlify/functions/*`, run the app with Netlify Dev:
+
+```bash
+npx netlify dev
+```
 
 ### Contributing
 

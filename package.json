@@ -1,6 +1,6 @@
 {
     "name": "statshammer-v4",
-    "version": "4.19.0",
+    "version": "4.20.0",
     "private": true,
     "dependencies": {
         "@babel/core": "^7.24.7",
@@ -57,9 +57,11 @@
     },
     "scripts": {
         "start": "react-scripts --openssl-legacy-provider start",
+        "dev:netlify": "npm_config_registry=https://registry.npmjs.org/ npx netlify dev --context production",
         "build": "react-scripts --openssl-legacy-provider build",
         "test": "react-scripts test",
-        "eject": "react-scripts eject"
+        "eject": "react-scripts eject",
+        "deploy": "pnpm build && netlify deploy --prod --dir build --functions netlify/functions --no-build --skip-functions-cache"
     },
     "browserslist": {
         "production": [

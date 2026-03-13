@@ -10,7 +10,7 @@ import { lightTheme } from 'themes';
 import type { IJsPDF } from 'types/pdf';
 import type { ISimulationResult } from 'types/simulations';
 import type { TResult } from 'types/stats';
-import type { ITargetStore } from 'types/store';
+import type { IStore, ITargetStore, TPlayerSide } from 'types/store';
 
 import generate from './generator';
 import { CumulativeProbabilityGraphs, ProbabilityGraphs, StatsGraphs } from './graphs';
@@ -48,7 +48,14 @@ const PdfGenerator: React.FC<IPdfGeneratorProps> = ({ units, target, results, pr
   const mobile = useMediaQuery(theme.breakpoints.down('sm'));
   const unitNames = useSelector(unitNamesSelector, _.isEqual);
   const per100Points = useSelector(statsPer100Points);
-  const importedArmyListText = useSelector((state: IStore) => state.config.importedArmyListText ?? '');
+  const importedArmyListText = useSelector((state: IStore) => {
+    const activePlayer =
+      state.config.activePlayer === 'Opponent' || (state.config.activePlayer as any) === 'Defender'
+        ? 'Opponent'
+        : 'Self';
+    const player = activePlayer as TPlayerSide;
+    return state.config.listAnalysisByPlayer?.[player]?.armyListText ?? '';
+  });
   const rulesText = useSelector((state: IStore) => state.config.rules ?? '');
 
   const generatePdf = useCallback(

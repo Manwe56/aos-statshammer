@@ -1,6 +1,6 @@
 import { BottomNavigation as Navigation, BottomNavigationAction as NavigationItem } from '@material-ui/core';
 import { makeStyles, Theme } from '@material-ui/core/styles';
-import { BarChart, Home, Info, Timeline as TimelineIcon } from '@material-ui/icons';
+import { BarChart, Home, Search, Timeline as TimelineIcon } from '@material-ui/icons';
 import { useBreakpointChanged, useRouteFind } from 'hooks';
 import React, { useEffect, useRef, useState } from 'react';
 import { useSelector } from 'react-redux';
@@ -39,7 +39,7 @@ const BottomNavigation = () => {
   const ref = useRef<HTMLDivElement>(null);
   const classes = useStyles({ height });
 
-  const routes = [ROUTES.HOME, ROUTES.DAMAGE, ROUTES.SIMULATIONS, ROUTES.ABOUT];
+  const routes = [ROUTES.HOME, ROUTES.DAMAGE, ROUTES.SIMULATIONS, ROUTES.LISTS_ANALYSIS];
   const [index] = useRouteFind(routes);
 
   const breakpoints = useBreakpointChanged();
@@ -70,7 +70,7 @@ const BottomNavigation = () => {
             disabled={numUnits <= 0}
             className={classes.item}
           />
-          <NavigationItem label="About" icon={<Info />} className={classes.item} />
+          <NavigationItem label="Lists" icon={<Search />} className={classes.item} />
         </Navigation>
       </div>
     </>

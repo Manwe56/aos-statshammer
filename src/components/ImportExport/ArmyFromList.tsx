@@ -1,14 +1,16 @@
-import { Button, FormControlLabel, IconButton, Switch, TextField, Typography } from '@material-ui/core';
+import { Button, FormControlLabel, IconButton, Paper, Switch, Tab, Tabs, TextField, Typography } from '@material-ui/core';
 import { makeStyles } from '@material-ui/core/styles';
-import { FileCopy, GetApp, ImportExport, Search } from '@material-ui/icons';
+import { ChatBubbleOutline, FileCopy, GetApp, ImportExport, Search, Send } from '@material-ui/icons';
 import { lowerCase } from 'lodash';
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
 import { useDispatch, useSelector } from 'react-redux';
+import { requestListAssistantReply } from 'api/listsAssistant';
 import StatsController from 'api/core/controllers/statsController';
 import { getSanitizedTargetSelector, mergedBattletomesSelector } from 'store/selectors';
 import { configStore, notificationsStore } from 'store/slices';
 import { Faction, IArmy } from 'types/army';
-import type { IStore } from 'types/store';
+import type { IAssistantChatMessage, IListAnalysisPlayerStore, IStore, TPlayerSide } from 'types/store';
 import type { IModifierInstanceParameter } from 'types/modifiers';
 import type { IUnitParameter, IWeaponProfileParameter } from 'types/unit';
 
@@ -17,6 +19,25 @@ const useStyles = makeStyles((theme) => ({
     display: 'flex',
     flexDirection: 'column',
     gap: theme.spacing(2),
+  },
+  tabs: {
+    marginTop: theme.spacing(1),
+  },
+  tabPanel: {
+    paddingTop: theme.spacing(2),
+  },
+  playerHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: theme.spacing(1),
+    marginBottom: theme.spacing(1),
+  },
+  emptyState: {
+    padding: theme.spacing(3, 2),
+    border: `1px dashed ${theme.palette.divider}`,
+    borderRadius: theme.shape.borderRadius,
+    backgroundColor: theme.palette.background.default,
   },
   buttonContainer: {
     display: 'flex',
@@ -32,7 +53,6 @@ const useStyles = makeStyles((theme) => ({
     marginLeft: theme.spacing(1),
   },
   extractedRulesContainer: {
-    marginTop: theme.spacing(2),
     padding: theme.spacing(2),
     backgroundColor: theme.palette.background.default,
     borderRadius: theme.shape.borderRadius,
@@ -56,16 +76,145 @@ const useStyles = makeStyles((theme) => ({
     maxHeight: '600px',
     overflowY: 'auto',
   },
+  chatTriggerContainer: {
+    marginTop: theme.spacing(1),
+  },
+  chatContainer: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: theme.spacing(1),
+  },
+  chatHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: theme.spacing(1),
+    flexWrap: 'wrap',
+  },
+  chatMessages: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: theme.spacing(1),
+    maxHeight: 320,
+    overflowY: 'auto',
+    padding: theme.spacing(1),
+    border: `1px solid ${theme.palette.divider}`,
+    borderRadius: theme.shape.borderRadius,
+    backgroundColor: theme.palette.background.default,
+  },
+  chatMessage: {
+    whiteSpace: 'normal',
+    wordWrap: 'break-word',
+    padding: theme.spacing(1.25),
+    borderRadius: theme.shape.borderRadius,
+    maxWidth: '92%',
+  },
+  chatMarkdown: {
+    '& p': {
+      margin: 0,
+      lineHeight: 1.5,
+    },
+    '& p + p': {
+      marginTop: theme.spacing(1),
+    },
+    '& ul, & ol': {
+      margin: `${theme.spacing(1)}px 0 0 ${theme.spacing(2.5)}px`,
+      padding: 0,
+    },
+    '& li + li': {
+      marginTop: theme.spacing(0.5),
+    },
+    '& a': {
+      color: 'inherit',
+      textDecoration: 'underline',
+    },
+    '& code': {
+      fontFamily: 'monospace',
+      fontSize: '0.85em',
+      padding: '0 4px',
+      borderRadius: 4,
+      backgroundColor: 'rgba(0, 0, 0, 0.08)',
+    },
+    '& pre': {
+      marginTop: theme.spacing(1),
+      marginBottom: 0,
+      padding: theme.spacing(1),
+      borderRadius: theme.shape.borderRadius,
+      overflowX: 'auto',
+      backgroundColor: theme.palette.background.default,
+    },
+    '& pre code': {
+      padding: 0,
+      backgroundColor: 'transparent',
+    },
+  },
+  chatMessageUser: {
+    alignSelf: 'flex-end',
+    backgroundColor: theme.palette.primary.main,
+    color: theme.palette.primary.contrastText,
+    '& $chatMarkdown code': {
+      backgroundColor: 'rgba(255, 255, 255, 0.24)',
+    },
+    '& $chatMarkdown pre': {
+      backgroundColor: 'rgba(255, 255, 255, 0.14)',
+    },
+  },
+  chatMessageAssistant: {
+    alignSelf: 'flex-start',
+    backgroundColor: theme.palette.background.paper,
+    border: `1px solid ${theme.palette.divider}`,
+  },
+  chatComposer: {
+    display: 'flex',
+    gap: theme.spacing(1),
+    alignItems: 'flex-end',
+  },
+  chatInput: {
+    flex: 1,
+  },
 }));
+
+// Prompt templates for assistant bootstrap; tune wording/structure as needed.
+const INITIAL_CHATBOT_PROMPT = [
+  'Contexte: ceci est ma liste (Self).',
+  'Analyse cette liste uniquement avec les règles et les statistiques fournies'
+].join('\n');
+
+const OPPONENT_ANALYSIS_PROMPT = [
+  'Contexte: voici deux listes: la mienne (Self) et celle de mon adversaire (Opponent).',
+  'Fait d\'abord une analyse de celle de mon adversaire sans aucune comparaison avec la mienne. Puis complete ton analyse avec un plan strategique pour remporter la partie avec la liste',
+].join('\n');
+
+const EMPTY_PLAYER_ANALYSIS_STATE: IListAnalysisPlayerStore = {
+  armyListText: '',
+  analysisText: '',
+  assistant: {
+    messages: [],
+    prompt: '',
+    open: false,
+    contextText: '',
+  },
+};
+
+const TAB_LIST_INPUT = 'list-input';
+const TAB_ANALYSIS = 'analysis';
+const TAB_CONVERSATION = 'conversation';
+
+type ListAnalysisTab = typeof TAB_LIST_INPUT | typeof TAB_ANALYSIS | typeof TAB_CONVERSATION;
+
+const getTabA11yProps = (tab: ListAnalysisTab) => ({
+  id: `army-list-tab-${tab}`,
+  'aria-controls': `army-list-tabpanel-${tab}`,
+});
 
 interface IArmyFromListProps {
   onLoadArmyFromList: (ArmyFromList: IArmy) => void;
+  activePlayer: TPlayerSide;
+  onSwitchPlayer: () => void;
 }
 
-const ArmyFromList = ({ onLoadArmyFromList }: IArmyFromListProps) => {
+const ArmyFromList = ({ onLoadArmyFromList, activePlayer, onSwitchPlayer }: IArmyFromListProps) => {
   const classes = useStyles();
-  const [armyList, setArmyList] = useState('');
-  const [extractedRules, setExtractedRules] = useState('');
   const [pdfLists, setPdfLists] = useState<string[]>([]);
   const [activePdfListIndex, setActivePdfListIndex] = useState(0);
   const [isPdfLoading, setIsPdfLoading] = useState(false);
@@ -75,7 +224,79 @@ const ArmyFromList = ({ onLoadArmyFromList }: IArmyFromListProps) => {
   const dispatch = useDispatch();
   const matchPlay = useSelector(mergedBattletomesSelector);
   const rules = useSelector((state: IStore) => state.config.rules);
+  const listAnalysisByPlayer = useSelector((state: IStore) => state.config.listAnalysisByPlayer);
   const target = useSelector(getSanitizedTargetSelector);
+  const auth = useSelector((state: IStore) => state.auth);
+  const [isChatLoading, setIsChatLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<ListAnalysisTab>(TAB_LIST_INPUT);
+  const currentPlayerAnalysis = listAnalysisByPlayer[activePlayer] || EMPTY_PLAYER_ANALYSIS_STATE;
+  const selfPlayerAnalysis = listAnalysisByPlayer.Self || EMPTY_PLAYER_ANALYSIS_STATE;
+  const armyList = currentPlayerAnalysis.armyListText;
+  const extractedRules = currentPlayerAnalysis.analysisText;
+  const chatMessages = currentPlayerAnalysis.assistant.messages;
+  const chatPrompt = currentPlayerAnalysis.assistant.prompt;
+  const isChatOpen = currentPlayerAnalysis.assistant.open;
+  const chatContextText = currentPlayerAnalysis.assistant.contextText;
+  const canUseChatbot = Boolean(auth.isAuthenticated && auth.idToken);
+  const requiresSelfAnalysis = activePlayer === 'Opponent';
+  const hasSelfAnalysis = Boolean(selfPlayerAnalysis.analysisText.trim());
+  const cannotStartOpponentAssistant = requiresSelfAnalysis && !hasSelfAnalysis;
+  const hasConversationTab = Boolean(isChatOpen && canUseChatbot);
+
+  const setArmyList = (importedArmyListText: string) => {
+    dispatch(configStore.actions.updatePlayerArmyListText({ player: activePlayer, importedArmyListText }));
+  };
+
+  const setExtractedRules = (importedListAnalysisText: string) => {
+    dispatch(configStore.actions.updatePlayerListAnalysisText({ player: activePlayer, importedListAnalysisText }));
+  };
+
+  const setChatMessages = (listAssistantMessages: IAssistantChatMessage[]) => {
+    dispatch(configStore.actions.updatePlayerListAssistantMessages({
+      player: activePlayer,
+      listAssistantMessages,
+    }));
+  };
+
+  const setChatPrompt = (listAssistantPrompt: string) => {
+    dispatch(configStore.actions.updatePlayerListAssistantPrompt({ player: activePlayer, listAssistantPrompt }));
+  };
+
+  const setIsChatOpen = (listAssistantOpen: boolean) => {
+    dispatch(configStore.actions.setPlayerListAssistantOpen({ player: activePlayer, listAssistantOpen }));
+  };
+
+  const setChatContextText = (listAssistantContextText: string) => {
+    dispatch(configStore.actions.updatePlayerListAssistantContextText({
+      player: activePlayer,
+      listAssistantContextText,
+    }));
+  };
+
+  const resetChat = () => {
+    dispatch(configStore.actions.clearPlayerListAssistantState({ player: activePlayer }));
+    setIsChatLoading(false);
+  };
+
+  const getErrorMessage = (error: unknown, fallback: string): string => {
+    if (error instanceof Error && error.message) {
+      return error.message;
+    }
+    return fallback;
+  };
+
+  useEffect(() => {
+    if (!canUseChatbot) {
+      dispatch(configStore.actions.clearAllListAssistantStates());
+      setIsChatLoading(false);
+    }
+  }, [canUseChatbot, dispatch]);
+
+  useEffect(() => {
+    if (!hasConversationTab && activeTab === TAB_CONVERSATION) {
+      setActiveTab(TAB_ANALYSIS);
+    }
+  }, [activeTab, hasConversationTab]);
 
   const normalizePdfCharacters = (value: string): string => value
     .replace(/\u00A0/g, ' ')
@@ -574,6 +795,8 @@ const ArmyFromList = ({ onLoadArmyFromList }: IArmyFromListProps) => {
     setActivePdfListIndex(index);
     setArmyList(pdfLists[index]);
     setExtractedRules('');
+    resetChat();
+    setActiveTab(TAB_LIST_INPUT);
   };
 
   const onGoToPreviousPdfList = () => applyPdfListAtIndex(activePdfListIndex - 1);
@@ -594,6 +817,9 @@ const ArmyFromList = ({ onLoadArmyFromList }: IArmyFromListProps) => {
       if (extractedLists.length === 0) {
         setPdfLists([]);
         setActivePdfListIndex(0);
+        setExtractedRules('');
+        resetChat();
+        setActiveTab(TAB_LIST_INPUT);
         dispatch(
           notificationsStore.actions.addNotification({
             message: 'No list text could be extracted from this PDF',
@@ -607,6 +833,8 @@ const ArmyFromList = ({ onLoadArmyFromList }: IArmyFromListProps) => {
       setActivePdfListIndex(0);
       setArmyList(extractedLists[0]);
       setExtractedRules('');
+      resetChat();
+      setActiveTab(TAB_LIST_INPUT);
 
       dispatch(
         notificationsStore.actions.addNotification({
@@ -638,8 +866,6 @@ const ArmyFromList = ({ onLoadArmyFromList }: IArmyFromListProps) => {
       return;
     }
 
-    dispatch(configStore.actions.updateImportedArmyListText({ importedArmyListText: armyList }));
-
     const armyUnits: IArmy = {
       faction: Faction.List,
       label: '',
@@ -656,6 +882,24 @@ const ArmyFromList = ({ onLoadArmyFromList }: IArmyFromListProps) => {
         message:
           'Sorry, not finding any known unit. Did you check your faction was already available in the factions that can be imported? ',
         variant: 'error',
+      }),
+    );
+  };
+
+  const onClearArmyList = () => {
+    if (!armyList && !extractedRules && chatMessages.length === 0) {
+      return;
+    }
+
+    setArmyList('');
+    setExtractedRules('');
+    resetChat();
+    setActiveTab(TAB_LIST_INPUT);
+
+    dispatch(
+      notificationsStore.actions.addNotification({
+        message: 'Army list cleared',
+        variant: 'info',
       }),
     );
   };
@@ -838,10 +1082,10 @@ const ArmyFromList = ({ onLoadArmyFromList }: IArmyFromListProps) => {
       return;
     }
 
-    dispatch(configStore.actions.updateImportedArmyListText({ importedArmyListText: armyList }));
-
     const analysisOutput = buildListAnalysisOutput(armyList);
     setExtractedRules(analysisOutput.outputText);
+    resetChat();
+    setActiveTab(TAB_ANALYSIS);
     notifyRulesExtractionResult(analysisOutput.foundRulesCount, analysisOutput.matchCount);
   };
 
@@ -939,10 +1183,10 @@ const ArmyFromList = ({ onLoadArmyFromList }: IArmyFromListProps) => {
       return;
     }
 
-    dispatch(configStore.actions.updateImportedArmyListText({ importedArmyListText: armyList }));
-
     const analysisOutput = buildListAnalysisOutput(armyList);
     setExtractedRules(analysisOutput.outputText);
+    resetChat();
+    setActiveTab(TAB_ANALYSIS);
     notifyRulesExtractionResult(analysisOutput.foundRulesCount, analysisOutput.matchCount);
     downloadAnalysisText(analysisOutput.outputText, armyList);
 
@@ -961,6 +1205,157 @@ const ArmyFromList = ({ onLoadArmyFromList }: IArmyFromListProps) => {
     }
   };
 
+  const requestAssistantReply = async (
+    analysisText: string,
+    userMessage: string,
+    messages: IAssistantChatMessage[],
+  ): Promise<string> => {
+    if (!auth.idToken) {
+      throw new Error('You must sign in before using the list assistant');
+    }
+
+    const normalizedAnalysisText = analysisText.trim();
+    const selfAnalysisText = activePlayer === 'Self'
+      ? normalizedAnalysisText
+      : selfPlayerAnalysis.analysisText.trim();
+    const opponentAnalysisText = activePlayer === 'Opponent' ? normalizedAnalysisText : '';
+
+    if (activePlayer === 'Opponent' && !selfAnalysisText) {
+      throw new Error('Analyze your Self list first before continuing Opponent assistant.');
+    }
+
+    return requestListAssistantReply({
+      analysisText: normalizedAnalysisText,
+      userMessage,
+      messages,
+      idToken: auth.idToken,
+      playerContext: activePlayer,
+      selfAnalysisText,
+      opponentAnalysisText,
+    });
+  };
+
+  const initializeConversation = async (analysisText: string) => {
+    const openingPrompt = activePlayer === 'Opponent' ? OPPONENT_ANALYSIS_PROMPT : INITIAL_CHATBOT_PROMPT;
+
+    setIsChatOpen(true);
+    setActiveTab(TAB_CONVERSATION);
+    setIsChatLoading(true);
+
+    try {
+      const reply = await requestAssistantReply(analysisText, openingPrompt, []);
+      setChatMessages([
+        { role: 'user', content: openingPrompt },
+        { role: 'assistant', content: reply },
+      ]);
+      setChatContextText(analysisText);
+    } catch (error) {
+      dispatch(
+        notificationsStore.actions.addNotification({
+          message: getErrorMessage(error, 'Could not start list assistant'),
+          variant: 'error',
+        }),
+      );
+      setIsChatOpen(false);
+      setActiveTab(TAB_ANALYSIS);
+    } finally {
+      setIsChatLoading(false);
+    }
+  };
+
+  const startChatbotConversation = async () => {
+    if (!canUseChatbot) {
+      return;
+    }
+
+    if (!extractedRules) {
+      dispatch(
+        notificationsStore.actions.addNotification({
+          message: 'Analyze the list first to start a chat',
+          variant: 'warning',
+        }),
+      );
+      return;
+    }
+
+    if (cannotStartOpponentAssistant) {
+      dispatch(
+        notificationsStore.actions.addNotification({
+          message: 'Analyze your Self list first before starting Opponent assistant.',
+          variant: 'warning',
+        }),
+      );
+      return;
+    }
+
+    if (isChatOpen && chatMessages.length > 0 && chatContextText === extractedRules) {
+      setActiveTab(TAB_CONVERSATION);
+      return;
+    }
+
+    if (chatMessages.length > 0 && chatContextText === extractedRules) {
+      setIsChatOpen(true);
+      setActiveTab(TAB_CONVERSATION);
+      return;
+    }
+
+    await initializeConversation(extractedRules);
+  };
+
+  const onResetConversation = async () => {
+    if (!extractedRules) {
+      return;
+    }
+
+    resetChat();
+    await initializeConversation(extractedRules);
+  };
+
+  const onSendChatMessage = async () => {
+    const trimmedPrompt = chatPrompt.trim();
+    if (!trimmedPrompt || isChatLoading) {
+      return;
+    }
+
+    const analysisText = chatContextText || extractedRules;
+    if (!analysisText) {
+      dispatch(
+        notificationsStore.actions.addNotification({
+          message: 'Analyze the list first to continue chatting',
+          variant: 'warning',
+        }),
+      );
+      return;
+    }
+
+    const history = [...chatMessages];
+    const nextMessages = [...history, { role: 'user' as const, content: trimmedPrompt }];
+    setChatMessages(nextMessages);
+    setChatPrompt('');
+    setIsChatLoading(true);
+
+    try {
+      const reply = await requestAssistantReply(analysisText, trimmedPrompt, history);
+      setChatMessages([...nextMessages, { role: 'assistant', content: reply }]);
+    } catch (error) {
+      dispatch(
+        notificationsStore.actions.addNotification({
+          message: getErrorMessage(error, 'List assistant request failed'),
+          variant: 'error',
+        }),
+      );
+    } finally {
+      setIsChatLoading(false);
+    }
+  };
+
+  const onChatPromptKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      onSendChatMessage();
+    }
+  };
+
   return (
     <div className={classes.root}>
       <input
@@ -970,107 +1365,265 @@ const ArmyFromList = ({ onLoadArmyFromList }: IArmyFromListProps) => {
         className={classes.hiddenInput}
         onChange={onUploadPdfLists}
       />
-      <TextField
-        id="army-list-input"
-        label="army list"
-        placeholder="copy paste your army list here"
-        multiline
-        value={armyList}
-        onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
-          setArmyList(event.target.value);
-        }}
-      />
-      <div className={classes.buttonContainer}>
-        <FormControlLabel
-          control={(
-            <Switch
-              color="primary"
-              checked={includeChargedVersions}
-              onChange={(_event, checked) => setIncludeChargedVersions(checked)}
+      <div className={classes.playerHeader}>
+        <Typography variant="subtitle1">{`Player context: ${activePlayer}`}</Typography>
+        <Button variant="outlined" size="small" onClick={onSwitchPlayer}>
+          {`Switch to ${activePlayer === 'Self' ? 'Opponent' : 'Self'}`}
+        </Button>
+      </div>
+      <Paper square className={classes.tabs}>
+        <Tabs
+          value={activeTab}
+          indicatorColor="primary"
+          textColor="primary"
+          onChange={(_event, nextTab) => setActiveTab(nextTab as ListAnalysisTab)}
+          variant="scrollable"
+          scrollButtons="auto"
+        >
+          <Tab label="List" value={TAB_LIST_INPUT} {...getTabA11yProps(TAB_LIST_INPUT)} />
+          <Tab label="Analysis" value={TAB_ANALYSIS} {...getTabA11yProps(TAB_ANALYSIS)} />
+          {hasConversationTab && (
+            <Tab
+              label="Conversation"
+              value={TAB_CONVERSATION}
+              {...getTabA11yProps(TAB_CONVERSATION)}
             />
           )}
-          label={includeChargedVersions ? 'Use charged versions' : 'Use regular versions'}
-        />
-        <Button
-          variant="contained"
-          startIcon={<ImportExport />}
-          color="primary"
-          component="span"
-          onClick={onClick}
-        >
-          Import this list to current player
-        </Button>
-        {rules && (
-          <Button
-            variant="outlined"
-            startIcon={<Search />}
-            color="secondary"
-            component="span"
-            onClick={onExtractRules}
-          >
-              Analyze list
-          </Button>
-        )}
-        <Button
-          variant="outlined"
-          component="span"
-          onClick={() => pdfInputRef.current?.click()}
-          disabled={isPdfLoading}
-        >
-          {isPdfLoading ? 'Loading PDF lists...' : 'Load lists from PDF'}
-        </Button>
-        {pdfLists.length > 0 && (
+        </Tabs>
+      </Paper>
+
+      <div
+        role="tabpanel"
+        hidden={activeTab !== TAB_LIST_INPUT}
+        id={`army-list-tabpanel-${TAB_LIST_INPUT}`}
+        aria-labelledby={`army-list-tab-${TAB_LIST_INPUT}`}
+        className={classes.tabPanel}
+      >
+        {activeTab === TAB_LIST_INPUT && (
           <>
-            {rules && (
+            <TextField
+              id="army-list-input"
+              label="army list"
+              placeholder="copy paste your army list here"
+              multiline
+              fullWidth
+              value={armyList}
+              onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+                setArmyList(event.target.value);
+              }}
+            />
+            <div className={classes.buttonContainer}>
+              <FormControlLabel
+                control={(
+                  <Switch
+                    color="primary"
+                    checked={includeChargedVersions}
+                    onChange={(_event, checked) => setIncludeChargedVersions(checked)}
+                  />
+                )}
+                label={includeChargedVersions ? 'Use charged versions' : 'Use regular versions'}
+              />
               <Button
                 variant="contained"
-                color="secondary"
+                startIcon={<ImportExport />}
+                color="primary"
                 component="span"
-                onClick={onAnalyzeDownloadAndNext}
+                onClick={onClick}
+              >
+                {`Import this list to ${activePlayer}`}
+              </Button>
+              <Button
+                variant="outlined"
+                component="span"
+                onClick={onClearArmyList}
+                disabled={!armyList && !extractedRules && chatMessages.length === 0}
+              >
+                Clear list
+              </Button>
+              {rules && (
+                <Button
+                  variant="outlined"
+                  startIcon={<Search />}
+                  color="secondary"
+                  component="span"
+                  onClick={onExtractRules}
+                >
+                  Analyze list
+                </Button>
+              )}
+              <Button
+                variant="outlined"
+                component="span"
+                onClick={() => pdfInputRef.current?.click()}
                 disabled={isPdfLoading}
               >
-                Analyze + Download + Next
+                {isPdfLoading ? 'Loading PDF lists...' : 'Load lists from PDF'}
               </Button>
-            )}
-            <Button
-              variant="outlined"
-              component="span"
-              onClick={onGoToPreviousPdfList}
-              disabled={activePdfListIndex === 0 || isPdfLoading}
-            >
-              Previous list
-            </Button>
-            <Button
-              variant="outlined"
-              component="span"
-              onClick={onGoToNextPdfList}
-              disabled={activePdfListIndex >= pdfLists.length - 1 || isPdfLoading}
-            >
-              Next list
-            </Button>
-            <Typography variant="caption" className={classes.pdfListCounter}>
-              {`PDF list ${activePdfListIndex + 1}/${pdfLists.length}`}
-            </Typography>
+              {pdfLists.length > 0 && (
+                <>
+                  {rules && (
+                    <Button
+                      variant="contained"
+                      color="secondary"
+                      component="span"
+                      onClick={onAnalyzeDownloadAndNext}
+                      disabled={isPdfLoading}
+                    >
+                      Analyze + Download + Next
+                    </Button>
+                  )}
+                  <Button
+                    variant="outlined"
+                    component="span"
+                    onClick={onGoToPreviousPdfList}
+                    disabled={activePdfListIndex === 0 || isPdfLoading}
+                  >
+                    Previous list
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    component="span"
+                    onClick={onGoToNextPdfList}
+                    disabled={activePdfListIndex >= pdfLists.length - 1 || isPdfLoading}
+                  >
+                    Next list
+                  </Button>
+                  <Typography variant="caption" className={classes.pdfListCounter}>
+                    {`PDF list ${activePdfListIndex + 1}/${pdfLists.length}`}
+                  </Typography>
+                </>
+              )}
+            </div>
           </>
         )}
       </div>
-      
-      {extractedRules && (
-        <div className={classes.extractedRulesContainer}>
-          <div className={classes.extractedRulesHeader}>
-            <Typography variant="h6">Analysis</Typography>
-            <div>
-              <IconButton onClick={downloadAnalysis} size="small" title="Download as .txt">
-                <GetApp />
-              </IconButton>
-              <IconButton onClick={copyToClipboard} size="small" title="Copy to clipboard">
-                <FileCopy />
-              </IconButton>
+
+      <div
+        role="tabpanel"
+        hidden={activeTab !== TAB_ANALYSIS}
+        id={`army-list-tabpanel-${TAB_ANALYSIS}`}
+        aria-labelledby={`army-list-tab-${TAB_ANALYSIS}`}
+        className={classes.tabPanel}
+      >
+        {activeTab === TAB_ANALYSIS && (
+          <>
+            {canUseChatbot && extractedRules && (
+              <div className={classes.chatTriggerContainer}>
+                <Button
+                  variant="outlined"
+                  color="primary"
+                  startIcon={<ChatBubbleOutline />}
+                  onClick={startChatbotConversation}
+                  disabled={isChatLoading || cannotStartOpponentAssistant}
+                >
+                  {chatMessages.length > 0 && chatContextText === extractedRules
+                    ? 'Open list assistant'
+                    : 'Start list assistant'}
+                </Button>
+                {cannotStartOpponentAssistant && (
+                  <Typography variant="caption" color="textSecondary">
+                    Analyze your Self list first to initialize the Opponent assistant.
+                  </Typography>
+                )}
+              </div>
+            )}
+
+            {extractedRules ? (
+              <div className={classes.extractedRulesContainer}>
+                <div className={classes.extractedRulesHeader}>
+                  <Typography variant="h6">Analysis</Typography>
+                  <div>
+                    <IconButton onClick={downloadAnalysis} size="small" title="Download as .txt">
+                      <GetApp />
+                    </IconButton>
+                    <IconButton onClick={copyToClipboard} size="small" title="Copy to clipboard">
+                      <FileCopy />
+                    </IconButton>
+                  </div>
+                </div>
+                <div className={classes.extractedRulesText}>
+                  {extractedRules}
+                </div>
+              </div>
+            ) : (
+              <div className={classes.emptyState}>
+                <Typography variant="body2" color="textSecondary">
+                  Run "Analyze list" to view the generated analysis here.
+                </Typography>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {hasConversationTab && (
+        <div
+          role="tabpanel"
+          hidden={activeTab !== TAB_CONVERSATION}
+          id={`army-list-tabpanel-${TAB_CONVERSATION}`}
+          aria-labelledby={`army-list-tab-${TAB_CONVERSATION}`}
+          className={classes.tabPanel}
+        >
+          {activeTab === TAB_CONVERSATION && (
+            <div className={classes.chatContainer}>
+              <div className={classes.chatHeader}>
+                <Typography variant="subtitle1">List assistant</Typography>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={onResetConversation}
+                  disabled={isChatLoading}
+                >
+                  Reset conversation
+                </Button>
+              </div>
+              <Typography variant="caption" color="textSecondary">
+                {`This conversation is scoped to the ${activePlayer} analysis output.`}
+              </Typography>
+
+              <div className={classes.chatMessages}>
+                {chatMessages.map((message, index) => (
+                  <div
+                    key={`${message.role}-${index}`}
+                    className={`${classes.chatMessage} ${
+                      message.role === 'user' ? classes.chatMessageUser : classes.chatMessageAssistant
+                    }`}
+                  >
+                    <ReactMarkdown source={message.content} className={classes.chatMarkdown} />
+                  </div>
+                ))}
+                {isChatLoading && (
+                  <Typography variant="body2" color="textSecondary">
+                    Assistant is thinking...
+                  </Typography>
+                )}
+              </div>
+
+              <div className={classes.chatComposer}>
+                <TextField
+                  className={classes.chatInput}
+                  label="Ask a question"
+                  placeholder="Ask about strengths, weaknesses, and potential improvements"
+                  multiline
+                  rows={2}
+                  variant="outlined"
+                  value={chatPrompt}
+                  onChange={(event: React.ChangeEvent<HTMLInputElement>) => setChatPrompt(event.target.value)}
+                  onKeyDown={onChatPromptKeyDown}
+                  disabled={isChatLoading}
+                />
+                <Button
+                  variant="contained"
+                  color="primary"
+                  startIcon={<Send />}
+                  onClick={onSendChatMessage}
+                  disabled={!chatPrompt.trim() || isChatLoading}
+                >
+                  Send
+                </Button>
+              </div>
             </div>
-          </div>
-          <div className={classes.extractedRulesText}>
-            {extractedRules}
-          </div>
+          )}
         </div>
       )}
     </div>

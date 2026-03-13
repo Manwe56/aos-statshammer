@@ -60,7 +60,7 @@ const Units = ({ className }: IUnitsProps) => {
       <div className={classes.player}>
         <Typography variant="h6">Player: {activeArmy}</Typography>
         <Button onClick={swapArmies} color="primary">
-          Change player
+          Switch player
         </Button>
         <Button
           className={classes.clearButton}

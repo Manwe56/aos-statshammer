@@ -44,6 +44,28 @@ export interface ISimulationsStore {
 
 export type INotificationsStore = INotification[];
 
+export type TPlayerSide = 'Self' | 'Opponent';
+
+export interface IAssistantChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface IListAnalysisChatStore {
+  messages: IAssistantChatMessage[];
+  prompt: string;
+  open: boolean;
+  contextText: string;
+}
+
+export interface IListAnalysisPlayerStore {
+  armyListText: string;
+  analysisText: string;
+  assistant: IListAnalysisChatStore;
+}
+
+export type IListAnalysisByPlayerStore = Record<TPlayerSide, IListAnalysisPlayerStore>;
+
 export interface IConfigStore {
   /** Whether the app is in dark mode or not */
   darkMode: boolean;
@@ -56,11 +78,11 @@ export interface IConfigStore {
   importReplace: boolean;
   exportFilename: string;
   otherPlayerArmy: IUnit[];
-  activePlayer: 'Attacker' | 'Defender';
+  activePlayer: TPlayerSide;
   /** User-defined rules text for extraction */
   rules: string;
-  /** Last army list text pasted in import from list */
-  importedArmyListText: string;
+  /** List-analysis draft text, analysis output and chat state keyed by player */
+  listAnalysisByPlayer: IListAnalysisByPlayerStore;
 }
 
 export interface IGoogleAuthUser {
