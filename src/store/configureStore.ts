@@ -11,6 +11,7 @@ import {
   configStore,
   modifiersStore,
   notificationsStore,
+  sequenceSimulatorStore,
   simulationsStore,
   statsStore,
   targetModifiersStore,
@@ -24,6 +25,7 @@ export const appReducer = combineReducers({
   config: configStore.reducer,
   modifiers: modifiersStore.reducer,
   notifications: notificationsStore.reducer,
+  sequenceSimulator: sequenceSimulatorStore.reducer,
   simulations: simulationsStore.reducer,
   stats: statsStore.reducer,
   target: targetStore.reducer,
@@ -37,7 +39,7 @@ const persistConfig = {
   key: 'aos-statshammer-4-2-0',
   storage,
   stateReconciler: autoMergeLevel2,
-  whitelist: ['units', 'config', 'target', 'battletomes', 'auth'],
+  whitelist: ['units', 'config', 'target', 'battletomes', 'auth', 'sequenceSimulator'],
 };
 
 const persistedReducer = persistReducer<IStore>(persistConfig, appReducer);

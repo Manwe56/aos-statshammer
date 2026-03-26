@@ -20,6 +20,7 @@ import Wrapper from './Wrapper';
 
 const Home = lazy(() => import('containers/Home'));
 const Simulations = lazy(() => import('containers/Simulations'));
+const SequenceSimulator = lazy(() => import('containers/SequenceSimulator'));
 const PdfContainer = lazy(() => import('containers/PdfContainer'));
 const About = lazy(() => import('containers/About'));
 const Settings = lazy(() => import('containers/Settings'));
@@ -64,6 +65,7 @@ const App = () => {
                     <Route path={['/units', ROUTES.TARGET, ROUTES.DAMAGE, ROUTES.HEALTH]} component={Home} />
                     <Route exact path={ROUTES.RANKINGS} component={Rankings} />
                     <Route exact path={ROUTES.SIMULATIONS} component={Simulations} />
+                    <Route exact path={ROUTES.SEQUENCE_SIMULATOR} component={SequenceSimulator} />
                     <Route exact path={ROUTES.PDF} component={PdfContainer} />
                     <Route exact path={ROUTES.ABOUT} component={About} />
                     <Route exact path={ROUTES.IMPORT} component={ImportExport} />

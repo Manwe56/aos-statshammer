@@ -1,7 +1,17 @@
 import { Divider, List, SwipeableDrawer as AppDrawer, Typography, useMediaQuery } from '@material-ui/core';
 import { grey } from '@material-ui/core/colors';
 import { makeStyles, Theme, useTheme } from '@material-ui/core/styles';
-import { EmojiEvents, GetApp, Home, ImportExport, Info, Search, Settings as SettingsIcon, Timeline } from '@material-ui/icons';
+import {
+  CompareArrows,
+  EmojiEvents,
+  GetApp,
+  Home,
+  ImportExport,
+  Info,
+  Search,
+  Settings as SettingsIcon,
+  Timeline,
+} from '@material-ui/icons';
 import { useHashMatch, useRouteFind } from 'hooks';
 import preval from 'preval.macro';
 import React, { useCallback, useEffect } from 'react';
@@ -96,6 +106,12 @@ const Drawer = () => {
             icon={<Timeline />}
             selected={page === ROUTES.SIMULATIONS}
             disabled={numUnits <= 0}
+          />
+          <MenuLinkItem
+            to={ROUTES.SEQUENCE_SIMULATOR}
+            label="Sequence simulator"
+            icon={<CompareArrows />}
+            selected={page === ROUTES.SEQUENCE_SIMULATOR}
           />
           <MenuLinkItem
             to={ROUTES.PDF}

@@ -3,6 +3,7 @@ export * from './battletomes';
 export * from './config';
 export * from './modifiers';
 export * from './notifications';
+export * from './sequenceSimulator';
 export * from './simulations';
 export * from './stats';
 export * from './target';

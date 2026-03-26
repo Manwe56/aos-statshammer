@@ -2,7 +2,7 @@ import _ from 'lodash';
 import { createSelector } from 'reselect';
 import { IModifierInstance, IModifierInstanceParameter } from 'types/modifiers';
 import type { IStore } from 'types/store';
-import type { IWeaponProfileParameter } from 'types/unit';
+import type { IWeaponProfile } from 'types/unit';
 
 /** Get the current units state */
 export const unitsSelector = (state: IStore) => state.units;
@@ -53,8 +53,8 @@ const sanitizeModifier = (modifier: IModifierInstance) => {
   return { id, active, options, uuid };
 };
 
-const sanitizeWeaponProfile = (wp: IWeaponProfileParameter) => {
-  const { active, attacks, damage, modifiers, num_models, rend, to_hit, to_wound, name } = wp;
+const sanitizeWeaponProfile = (wp) => {
+  const { uuid, active, attacks, damage, modifiers, num_models, rend, to_hit, to_wound, name } = wp;
 
   // Ensure all numeric values are valid numbers
   const safeNum = (val: any, defaultVal = 0) => {
@@ -63,6 +63,7 @@ const sanitizeWeaponProfile = (wp: IWeaponProfileParameter) => {
   };
 
   return {
+    uuid,
     active,
     attacks,
     damage,
@@ -117,7 +118,7 @@ export interface ISanitizedUnit {
   reinforced: boolean;
   attacksModifier: number;
   modifiers?: IModifierInstanceParameter[];
-  weapon_profiles: IWeaponProfileParameter[];
+  weapon_profiles: IWeaponProfile[];
 }
 export const getSanitizedActiveUnitsSelector = createSelector(activeUnitsSelector, (units) =>
   _.memoize((): ISanitizedUnit[] => units.map(sanitizeUnit)),

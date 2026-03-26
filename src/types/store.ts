@@ -1,6 +1,7 @@
 import { Faction, IArmy } from './army';
 import type { IModifierDefinition, IModifierInstance } from './modifiers';
 import type { INotification } from './notification';
+import type { ISequenceSimulationResult, TSequenceStep } from './sequenceSimulator';
 import type { ISimulationResult } from './simulations';
 import type { StatsResults, TResults } from './stats';
 import type { IUnit } from './unit';
@@ -39,6 +40,13 @@ export interface IStatsStore {
 export interface ISimulationsStore {
   pending: boolean;
   results: ISimulationResult[];
+  error: TError;
+}
+
+export interface ISequenceSimulatorStore {
+  pending: boolean;
+  steps: TSequenceStep[];
+  results: ISequenceSimulationResult | null;
   error: TError;
 }
 
@@ -117,6 +125,7 @@ export interface IStore {
   battletomes: IBattletomesStore;
   target: ITargetStore;
   stats: IStatsStore;
+  sequenceSimulator: ISequenceSimulatorStore;
   simulations: ISimulationsStore;
   notifications: INotificationsStore;
   config: IConfigStore;

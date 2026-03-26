@@ -427,6 +427,7 @@ const BSDataUnits = ({ onLoadBSDataUnits }: IBSDataUnitsProps) => {
                 !hasChild(entry[1], 'categoryLink', 'name', 'MANIFESTATION') &&
                 !hasChild(entry[1], 'categoryLink', 'name', 'ENDLESS SPELL'),
             )
+            .filter((entry) => !(entry[1].getAttribute('name') || '').includes('Anvil of Apotheosis'))
             .map((entry) => readUnitFromNode(entry[1], costs, Faction[faction], reinforced))
             .flatMap((u) => u)
             .toArray();

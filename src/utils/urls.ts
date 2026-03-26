@@ -4,6 +4,7 @@ export const ROUTES = {
   DAMAGE: '/damage',
   HEALTH: '/health',
   SIMULATIONS: '/simulations',
+  SEQUENCE_SIMULATOR: '/sequence-simulator',
   RANKINGS: '/rankings',
   PDF: '/pdf',
   ABOUT: '/about',

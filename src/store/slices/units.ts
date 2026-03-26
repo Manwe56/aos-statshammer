@@ -250,10 +250,10 @@ export const editWeaponProfile = (
   const { index, profileIndex, weaponProfile } = action.payload;
   const unit = state.find((_, i) => i === index);
   if (unit) {
-    let profile = unit.weapon_profiles.find((_, i) => i === profileIndex);
+    const profile = unit.weapon_profiles.find((_, i) => i === profileIndex);
     if (profile) {
-      profile = { ...profile, ...weaponProfile };
-      unit.weapon_profiles[profileIndex] = profile;
+      // Explicitly preserve uuid and active — the dialog state never carries these fields
+      unit.weapon_profiles[profileIndex] = { ...profile, ...weaponProfile, uuid: profile.uuid, active: profile.active };
     }
   }
 };

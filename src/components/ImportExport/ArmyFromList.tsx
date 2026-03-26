@@ -199,6 +199,7 @@ const EMPTY_PLAYER_ANALYSIS_STATE: IListAnalysisPlayerStore = {
 const TAB_LIST_INPUT = 'list-input';
 const TAB_ANALYSIS = 'analysis';
 const TAB_CONVERSATION = 'conversation';
+const REINFORCED_NAME_SUFFIX = ' [R]';
 
 type ListAnalysisTab = typeof TAB_LIST_INPUT | typeof TAB_ANALYSIS | typeof TAB_CONVERSATION;
 
@@ -674,6 +675,26 @@ const ArmyFromList = ({ onLoadArmyFromList, activePlayer, onSwitchPlayer }: IArm
     return lines.flatMap((line, index) => getUnitsForLine(line, lines[index + 1] ?? '', includeCharged));
   };
 
+  const withUnitOccurrenceSuffix = (units: IUnitParameter[]): IUnitParameter[] => {
+    const occurrences = new Map<string, number>();
+
+    return units.map((unit) => {
+      const unitName = unit.name.trim();
+      const hasReinforcedSuffix = unitName.endsWith(REINFORCED_NAME_SUFFIX);
+      const baseName = hasReinforcedSuffix
+        ? unitName.slice(0, -REINFORCED_NAME_SUFFIX.length).trimEnd()
+        : unitName;
+      const occurrenceKey = unitName;
+      const nextOccurrence = (occurrences.get(occurrenceKey) ?? 0) + 1;
+      occurrences.set(occurrenceKey, nextOccurrence);
+
+      return {
+        ...unit,
+        name: `${baseName} #${nextOccurrence}${hasReinforcedSuffix ? REINFORCED_NAME_SUFFIX : ''}`,
+      };
+    });
+  };
+
   const getPdfJsLib = async (): Promise<any> => {
     if (pdfjsLibRef.current) {
       return pdfjsLibRef.current;
@@ -866,10 +887,12 @@ const ArmyFromList = ({ onLoadArmyFromList, activePlayer, onSwitchPlayer }: IArm
       return;
     }
 
+    const importedUnits = withUnitOccurrenceSuffix(getUnitsFromArmyList(armyList, includeChargedVersions));
+
     const armyUnits: IArmy = {
       faction: Faction.List,
       label: '',
-      units: getUnitsFromArmyList(armyList, includeChargedVersions),
+      units: importedUnits,
     };
 
     if (armyUnits.units.length > 0) {
@@ -967,12 +990,7 @@ const ArmyFromList = ({ onLoadArmyFromList, activePlayer, onSwitchPlayer }: IArm
     if (unitsForAnalysis.length === 0) {
       return '';
     }
-    const occurrences = new Map<string, number>();
-    const uniquelyNamedUnits = unitsForAnalysis.map((unit) => {
-      const next = (occurrences.get(unit.name) ?? 0) + 1;
-      occurrences.set(unit.name, next);
-      return { ...unit, name: `${unit.name} #${next}` };
-    });
+    const uniquelyNamedUnits = withUnitOccurrenceSuffix(unitsForAnalysis);
     const sanitizedUnits = uniquelyNamedUnits.map(sanitizeUnitForStats);
 
     const controller = new StatsController();

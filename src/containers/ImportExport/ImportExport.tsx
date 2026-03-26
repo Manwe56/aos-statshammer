@@ -7,9 +7,7 @@ import {
   Typography,
 } from '@material-ui/core';
 import { makeStyles } from '@material-ui/core/styles';
-import BetaTag from 'components/BetaTag';
 import ArmySelector from 'components/ImportExport/ArmySelector';
-import BSDataUnits from 'components/ImportExport/BSDataUnits';
 import ExportArmyItem from 'components/ImportExport/ExportArmyItem';
 import FactionSelector from 'components/ImportExport/FactionSelector';
 import ImportArmy from 'components/ImportExport/ImportArmy';
@@ -17,8 +15,8 @@ import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useHistory } from 'react-router-dom';
 import { configSelector, mergedBattletomesSelector } from 'store/selectors';
-import { battletomesStore, configStore, notificationsStore, unitsStore } from 'store/slices';
-import { Faction, IArmy } from 'types/army';
+import { configStore, notificationsStore, unitsStore } from 'store/slices';
+import { Faction } from 'types/army';
 import { IUnitParameter } from 'types/unit';
 import { scrollToTop } from 'utils/scrollIntoView';
 import { ROUTES } from 'utils/urls';
@@ -135,35 +133,6 @@ const ImportExport = () => {
   };
   const loadUnits = (units: IUnitParameter[], faction: Faction) =>
     loadUnitsWithStatus(units, false, false, faction);
-  const loadBT = (units: IUnitParameter[], faction: Faction) => {
-    if (faction === Faction.List) {
-      dispatch(
-        notificationsStore.actions.addNotification({
-          message: `File is containing an army list, not a known faction. You can't import it as a battletome`,
-          variant: 'error',
-        }),
-      );
-      return;
-    }
-    const battletome: IArmy = { faction, label: 'Battletome', units };
-    dispatch(battletomesStore.actions.addBattletome({ battletome }));
-    dispatch(
-      notificationsStore.actions.addNotification({
-        message: `Battletome ${faction} updated successfully`,
-        variant: 'success',
-      }),
-    );
-  };
-  const loadBSDataFaction = (units: IUnitParameter[], faction: Faction) => {
-    const battletome: IArmy = { faction, label: 'BS Data', units };
-    dispatch(battletomesStore.actions.addBattletome({ battletome }));
-    dispatch(
-      notificationsStore.actions.addNotification({
-        message: `Battletome ${faction} updated successfully from BS Data`,
-        variant: 'success',
-      }),
-    );
-  };
   const loadInactiveArmy = (army: IArmy) => loadUnitsWithStatus(army.units, true, false, Faction.List);
 
   const toggleReplace = () => {
@@ -225,22 +194,7 @@ const ImportExport = () => {
             <ArmySelector onClick={loadInactiveArmy} armies={sortedMatchPlays} label="Import Faction" />
           </div>
         </Card>
-        <Divider className={classes.divider} />
-        <Card className={classes.card}>
-          <Typography variant="h5">Update factions</Typography>
-          <Typography variant="caption">
-            The application is by default containing only indexes defintions of the factions, and some factions are even missing. In this section you can update a faction with a list of units you exported previously and that represent an updated version of the faction. You may also have corrected some mistakes for a faction and wants to correct them.
-            <br/><BetaTag /> You can also now update all the factions by loading the units defintions directly from the <a href="https://github.com/BSData/age-of-sigmar-4th">BSData AoS 4th</a> open source repository. Please note that this is not fully supported yet, and here is a list of known features that are not working well. Double check the configured warscroll before trusting the stats!
-            <ul>
-              <li>Any weapon rule that requires to read a paragraph to know how it works (like instead of using the standard sequence, throw a D3 and on a 2+ inflict the corresponding Mortal Wounds)</li>
-              <li>When there is several weapon options for a same profile, sometimes the numbers are incorrect, sometimes the additional attack from the champion is given to all the profiles</li>
-            </ul>
-          </Typography>
-          <div className={classes.flexRow}>
-            <ImportArmy onArmyLoad={loadBT} text="Import battletome" />
-            <BSDataUnits onLoadBSDataUnits={loadBSDataFaction} />
-          </div>
-        </Card>
+
       </div>
     </div>
   );

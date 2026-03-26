@@ -1,10 +1,17 @@
 import { Button, Card, CardContent, FormControlLabel, Switch, TextField, Typography } from '@material-ui/core';
 import { makeStyles } from '@material-ui/core/styles';
 import { Clear, ExitToApp, Save } from '@material-ui/icons';
+import BetaTag from 'components/BetaTag';
+import BSDataUnits from 'components/ImportExport/BSDataUnits';
+import ImportArmy from 'components/ImportExport/ImportArmy';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { authStore, configStore, notificationsStore } from 'store/slices';
+import { authStore, battletomesStore, configStore, notificationsStore } from 'store/slices';
+import { Faction, IArmy } from 'types/army';
 import type { IStore } from 'types/store';
+import { IUnitParameter } from 'types/unit';
+
+const BSDATA_LAST_UPDATE_KEY = 'bsdata_last_update';
 
 const GOOGLE_IDENTITY_SCRIPT_SRC = 'https://accounts.google.com/gsi/client';
 
@@ -128,6 +135,13 @@ const useStyles = makeStyles((theme) => ({
   card: {
     marginBottom: theme.spacing(2),
   },
+  flexRow: {
+    display: 'flex',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: '1em',
+    marginTop: theme.spacing(2),
+  },
   title: {
     marginBottom: theme.spacing(2),
   },
@@ -180,6 +194,9 @@ const Settings = () => {
   const auth = useSelector((state: IStore) => state.auth);
   const [localRules, setLocalRules] = useState(rules);
   const [googleAuthError, setGoogleAuthError] = useState<string | null>(null);
+  const [lastBSDataUpdate, setLastBSDataUpdate] = useState<string | null>(
+    () => localStorage.getItem(BSDATA_LAST_UPDATE_KEY),
+  );
   const isRulesDirty = localRules !== rules;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const googleButtonRef = useRef<HTMLDivElement>(null);
@@ -298,6 +315,40 @@ const Settings = () => {
       }),
     );
   }, [dispatch]);
+
+  const loadBT = (units: IUnitParameter[], faction: Faction) => {
+    if (faction === Faction.List) {
+      dispatch(
+        notificationsStore.actions.addNotification({
+          message: `File is containing an army list, not a known faction. You can't import it as a battletome`,
+          variant: 'error',
+        }),
+      );
+      return;
+    }
+    const battletome: IArmy = { faction, label: 'Battletome', units };
+    dispatch(battletomesStore.actions.addBattletome({ battletome }));
+    dispatch(
+      notificationsStore.actions.addNotification({
+        message: `Battletome ${faction} updated successfully`,
+        variant: 'success',
+      }),
+    );
+  };
+
+  const loadBSDataFaction = (units: IUnitParameter[], faction: Faction) => {
+    const battletome: IArmy = { faction, label: 'BS Data', units };
+    dispatch(battletomesStore.actions.addBattletome({ battletome }));
+    const now = new Date().toLocaleString();
+    localStorage.setItem(BSDATA_LAST_UPDATE_KEY, now);
+    setLastBSDataUpdate(now);
+    dispatch(
+      notificationsStore.actions.addNotification({
+        message: `Battletome ${faction} updated successfully from BS Data`,
+        variant: 'success',
+      }),
+    );
+  };
 
   const handleGoogleSignOut = () => {
     dispatch(authStore.actions.signOut());
@@ -432,6 +483,32 @@ const Settings = () => {
               {googleAuthError}
             </Typography>
           )}
+        </CardContent>
+      </Card>
+
+      <Card className={classes.card}>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>
+            Update factions
+          </Typography>
+          <Typography variant="body2" color="textSecondary" paragraph>
+            The application is by default containing only index definitions of the factions, and some factions are even
+            missing. In this section you can update a faction with a list of units you exported previously and that
+            represent an updated version of the faction.
+            <br />
+            <BetaTag /> You can also now update all the factions by loading the unit definitions directly from the{' '}
+            <a href="https://github.com/BSData/age-of-sigmar-4th">BSData AoS 4th</a> open source repository. Please
+            note that this is not fully supported yet.
+          </Typography>
+          {lastBSDataUpdate && (
+            <Typography variant="caption" color="textSecondary">
+              {`Last BSData update: ${lastBSDataUpdate}`}
+            </Typography>
+          )}
+          <div className={classes.flexRow}>
+            <ImportArmy onArmyLoad={loadBT} text="Import battletome" />
+            <BSDataUnits onLoadBSDataUnits={loadBSDataFaction} />
+          </div>
         </CardContent>
       </Card>
 
