@@ -175,6 +175,8 @@ export const sanitizedUnit1Name: ISanitizedUnit = {
   reinforced: false,
   weapon_profiles: [
     {
+      uuid: 'profile-0',
+      name: 'Weapon Profile',
       active: true,
       num_models: 1,
       attacks: 6,
@@ -220,6 +222,8 @@ export const sanitizedUnit2Name: ISanitizedUnit = {
   reinforced: false,
   weapon_profiles: [
     {
+      uuid: 'profile-0',
+      name: 'Weapon Profile',
       active: true,
       num_models: 5,
       attacks: 2,
@@ -255,6 +259,8 @@ export const sanitizedUnit3Name: ISanitizedUnit = {
   reinforced: false,
   weapon_profiles: [
     {
+      uuid: 'profile-0',
+      name: 'Weapon Profile',
       active: true,
       num_models: 3,
       attacks: 'D6',

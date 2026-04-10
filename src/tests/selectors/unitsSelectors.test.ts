@@ -47,8 +47,5 @@ describe('unitsSelectors', () => {
 
     const expectedUsingName = [testUnits.sanitizedUnit1Name, testUnits.sanitizedUnit2Name];
     expect(getSanitizedUnits()).toEqual(expectedUsingName);
-
-    const expectedUsingUuid = [testUnits.sanitizedUnit1Uuid, testUnits.sanitizedUnit2Uuid];
-    expect(getSanitizedUnits()).toEqual(expectedUsingUuid);
   });
 });

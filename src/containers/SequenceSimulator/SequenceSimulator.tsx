@@ -117,6 +117,8 @@ const SequenceSimulator = () => {
   const [targetId, setTargetId] = useState('');
   const [allOutAttack, setAllOutAttack] = useState(false);
   const [allOutDefense, setAllOutDefense] = useState(false);
+  const [minusOneHit, setMinusOneHit] = useState(false);
+  const [minusOneWound, setMinusOneWound] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingType, setEditingType] = useState<'fight' | 'end-turn' | null>(null);
   const [activeTab, setActiveTab] = useState(0);
@@ -232,6 +234,8 @@ const SequenceSimulator = () => {
     setEditingType(null);
     setAllOutAttack(false);
     setAllOutDefense(false);
+    setMinusOneHit(false);
+    setMinusOneWound(false);
     setEditingSelectedWeaponProfileUuids(undefined);
     const first = options[0]?.id ?? '';
     const second = options.find((option) => getSide(option.id) !== getSide(first))?.id ?? '';
@@ -261,6 +265,8 @@ const SequenceSimulator = () => {
           targetId,
           allOutAttack,
           allOutDefense,
+          minusOneHit,
+          minusOneWound,
           selectedWeaponProfileUuids,
         }),
       );
@@ -274,6 +280,8 @@ const SequenceSimulator = () => {
         targetId,
         allOutAttack,
         allOutDefense,
+        minusOneHit,
+        minusOneWound,
         selectedWeaponProfileUuids: undefined,
       }),
     );
@@ -302,6 +310,8 @@ const SequenceSimulator = () => {
       setTargetId(step.targetId);
       setAllOutAttack(!!step.allOutAttack);
       setAllOutDefense(!!step.allOutDefense);
+      setMinusOneHit(!!step.minusOneHit);
+      setMinusOneWound(!!step.minusOneWound);
       setEditingSelectedWeaponProfileUuids(step.selectedWeaponProfileUuids);
       return;
     }
@@ -423,6 +433,20 @@ const SequenceSimulator = () => {
                   >
                     All out defense
                   </Button>
+                  <Button
+                    variant={minusOneHit ? 'contained' : 'outlined'}
+                    color={minusOneHit ? 'secondary' : 'default'}
+                    onClick={() => setMinusOneHit((value) => !value)}
+                  >
+                    -1H
+                  </Button>
+                  <Button
+                    variant={minusOneWound ? 'contained' : 'outlined'}
+                    color={minusOneWound ? 'secondary' : 'default'}
+                    onClick={() => setMinusOneWound((value) => !value)}
+                  >
+                    -1W
+                  </Button>
                 </div>
 
                 <div className={classes.row}>
@@ -469,7 +493,7 @@ const SequenceSimulator = () => {
                                   {`${participantById[step.attackerId]?.label ?? 'Unknown'} -> ${participantById[step.targetId]?.label ?? 'Unknown'}`}
                                 </TableCell>
                                 <TableCell>
-                                  {`AOA: ${step.allOutAttack ? 'on' : 'off'} | AOD: ${step.allOutDefense ? 'on' : 'off'} | Weapons: ${getWeaponsDetails(step)}`}
+                                  {`AOA: ${step.allOutAttack ? 'on' : 'off'} | AOD: ${step.allOutDefense ? 'on' : 'off'} | -1H: ${step.minusOneHit ? 'on' : 'off'} | -1W: ${step.minusOneWound ? 'on' : 'off'} | Weapons: ${getWeaponsDetails(step)}`}
                                 </TableCell>
                               </>
                             ) : (
@@ -511,6 +535,36 @@ const SequenceSimulator = () => {
                                       }
                                     >
                                       AOD
+                                    </Button>
+                                    <Button
+                                      size="small"
+                                      variant={step.minusOneHit ? 'contained' : 'outlined'}
+                                      color={step.minusOneHit ? 'secondary' : 'default'}
+                                      onClick={() =>
+                                        dispatch(
+                                          sequenceSimulatorStore.actions.toggleFightStepAction({
+                                            id: step.id,
+                                            action: 'minusOneHit',
+                                          }),
+                                        )
+                                      }
+                                    >
+                                      -1H
+                                    </Button>
+                                    <Button
+                                      size="small"
+                                      variant={step.minusOneWound ? 'contained' : 'outlined'}
+                                      color={step.minusOneWound ? 'secondary' : 'default'}
+                                      onClick={() =>
+                                        dispatch(
+                                          sequenceSimulatorStore.actions.toggleFightStepAction({
+                                            id: step.id,
+                                            action: 'minusOneWound',
+                                          }),
+                                        )
+                                      }
+                                    >
+                                      -1W
                                     </Button>
                                     <Button size="small" variant="outlined" onClick={() => openWeaponsModal(step)}>
                                       Weapons

@@ -40,6 +40,7 @@ const simulateSingleAttack = (
   target: ISanitizedUnit,
   attackerHitBonus = 0,
   targetSaveBonus = 0,
+  attackerWoundBonus = 0,
   selectedWeaponProfileUuids?: string[],
 ): number => {
   if (attackerRemainingModels <= 0 || attacker.health <= 0) return 0;
@@ -56,12 +57,13 @@ const simulateSingleAttack = (
       if (profileModels <= 0) return acc;
 
       const modifiedToHit = Math.max(profile.to_hit - attackerHitBonus, 2);
+      const modifiedToWound = Math.max(profile.to_wound - attackerWoundBonus, 2);
 
       const weaponProfile = new WeaponProfile(
         profileModels,
         profile.attacks,
         modifiedToHit,
-        profile.to_wound,
+        modifiedToWound,
         profile.rend,
         profile.damage,
         profile.modifiers,
@@ -200,12 +202,18 @@ export const runSequenceSimulations = ({
               ...target.unit,
               save: currentSaves[step.targetId] ?? target.unit.save,
             };
+
+            const attackerHitBonus = (step.allOutAttack ? 1 : 0) - (step.minusOneHit ? 1 : 0);
+            const targetSaveBonus = step.allOutDefense ? 1 : 0;
+            const attackerWoundBonus = step.minusOneWound ? -1 : 0;
+
             const damage = simulateSingleAttack(
               attacker.unit,
               attackerModels,
               targetWithCurrentSave,
-              step.allOutAttack ? 1 : 0,
-              step.allOutDefense ? 1 : 0,
+              attackerHitBonus,
+              targetSaveBonus,
+              attackerWoundBonus,
               step.selectedWeaponProfileUuids,
             );
             const targetHealth = Math.max(target.unit.health, 1);

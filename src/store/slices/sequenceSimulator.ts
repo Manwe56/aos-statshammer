@@ -25,11 +25,21 @@ export const addStep = (
       targetId: string;
       allOutAttack: boolean;
       allOutDefense: boolean;
+      minusOneHit: boolean;
+      minusOneWound: boolean;
       selectedWeaponProfileUuids?: string[];
     };
   },
 ) => {
-  const { attackerId, targetId, allOutAttack, allOutDefense, selectedWeaponProfileUuids } = action.payload;
+  const {
+    attackerId,
+    targetId,
+    allOutAttack,
+    allOutDefense,
+    minusOneHit,
+    minusOneWound,
+    selectedWeaponProfileUuids,
+  } = action.payload;
   state.steps.push({
     id: nanoid(),
     type: 'fight',
@@ -37,6 +47,8 @@ export const addStep = (
     targetId,
     allOutAttack,
     allOutDefense,
+    minusOneHit,
+    minusOneWound,
     selectedWeaponProfileUuids,
   });
   state.results = null;
@@ -58,6 +70,8 @@ export const updateStep = (
           targetId: string;
           allOutAttack: boolean;
           allOutDefense: boolean;
+          minusOneHit: boolean;
+          minusOneWound: boolean;
           selectedWeaponProfileUuids?: string[];
         }
       | {
@@ -77,6 +91,8 @@ export const updateStep = (
         targetId: action.payload.targetId,
         allOutAttack: action.payload.allOutAttack,
         allOutDefense: action.payload.allOutDefense,
+        minusOneHit: action.payload.minusOneHit,
+        minusOneWound: action.payload.minusOneWound,
         selectedWeaponProfileUuids: action.payload.selectedWeaponProfileUuids,
       };
     } else {
@@ -91,7 +107,9 @@ export const updateStep = (
 
 export const toggleFightStepAction = (
   state: ISequenceSimulatorStore,
-  action: { payload: { id: string; action: 'allOutAttack' | 'allOutDefense' } },
+  action: {
+    payload: { id: string; action: 'allOutAttack' | 'allOutDefense' | 'minusOneHit' | 'minusOneWound' };
+  },
 ) => {
   const { id, action: actionName } = action.payload;
   const index = state.steps.findIndex((step) => step.id === id);

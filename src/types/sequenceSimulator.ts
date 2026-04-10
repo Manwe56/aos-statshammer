@@ -11,6 +11,8 @@ export interface ISequenceFightStep extends ISequenceBaseStep {
   targetId: string;
   allOutAttack: boolean;
   allOutDefense: boolean;
+  minusOneHit: boolean;
+  minusOneWound: boolean;
   selectedWeaponProfileUuids?: string[];
 }
 
