@@ -6,7 +6,6 @@ import thunk from 'redux-thunk';
 import type { IStore } from 'types/store';
 
 import {
-  authStore,
   battletomesStore,
   configStore,
   modifiersStore,
@@ -20,7 +19,6 @@ import {
 } from './slices';
 
 export const appReducer = combineReducers({
-  auth: authStore.reducer,
   battletomes: battletomesStore.reducer,
   config: configStore.reducer,
   modifiers: modifiersStore.reducer,
@@ -39,7 +37,7 @@ const persistConfig = {
   key: 'aos-statshammer-4-2-0',
   storage,
   stateReconciler: autoMergeLevel2,
-  whitelist: ['units', 'config', 'target', 'battletomes', 'auth', 'sequenceSimulator'],
+  whitelist: ['units', 'config', 'target', 'battletomes', 'sequenceSimulator'],
 };
 
 const persistedReducer = persistReducer<IStore>(persistConfig, appReducer);

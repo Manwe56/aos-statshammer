@@ -54,22 +54,9 @@ export type INotificationsStore = INotification[];
 
 export type TPlayerSide = 'Self' | 'Opponent';
 
-export interface IAssistantChatMessage {
-  role: 'user' | 'assistant';
-  content: string;
-}
-
-export interface IListAnalysisChatStore {
-  messages: IAssistantChatMessage[];
-  prompt: string;
-  open: boolean;
-  contextText: string;
-}
-
 export interface IListAnalysisPlayerStore {
   armyListText: string;
   analysisText: string;
-  assistant: IListAnalysisChatStore;
 }
 
 export type IListAnalysisByPlayerStore = Record<TPlayerSide, IListAnalysisPlayerStore>;
@@ -87,29 +74,8 @@ export interface IConfigStore {
   exportFilename: string;
   otherPlayerArmy: IUnit[];
   activePlayer: TPlayerSide;
-  /** User-defined rules text for extraction */
-  rules: string;
-  /** List-analysis draft text, analysis output and chat state keyed by player */
+  /** List-analysis draft text and analysis output keyed by player */
   listAnalysisByPlayer: IListAnalysisByPlayerStore;
-}
-
-export interface IGoogleAuthUser {
-  id: string;
-  email: string;
-  emailVerified: boolean;
-  name: string;
-  givenName: string;
-  familyName: string;
-  picture: string;
-}
-
-export interface IAuthStore {
-  isAuthenticated: boolean;
-  provider: 'google' | null;
-  idToken: string | null;
-  tokenIssuedAt: number | null;
-  tokenExpiresAt: number | null;
-  user: IGoogleAuthUser | null;
 }
 
 export interface IBattletomesStore {
@@ -118,7 +84,6 @@ export interface IBattletomesStore {
 }
 
 export interface IStore {
-  auth: IAuthStore;
   modifiers: IModifiersStore;
   targetModifiers: ITargetModifiersStore;
   units: IUnitStore;

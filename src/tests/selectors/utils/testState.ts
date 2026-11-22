@@ -1,5 +1,4 @@
 import type {
-  IAuthStore,
   IBattletomesStore,
   IConfigStore,
   IModifiersStore,
@@ -151,15 +150,6 @@ export const simulations: ISimulationsStore = {
 
 export const notifications: INotificationsStore = [];
 
-export const auth: IAuthStore = {
-  isAuthenticated: false,
-  provider: null,
-  idToken: null,
-  tokenIssuedAt: null,
-  tokenExpiresAt: null,
-  user: null,
-};
-
 export const config: IConfigStore = {
   darkMode: false,
   desktopGraphList: false,
@@ -169,27 +159,14 @@ export const config: IConfigStore = {
   exportFilename: 'aos-stathammer-army',
   otherPlayerArmy: [],
   activePlayer: 'Self',
-  rules: '',
   listAnalysisByPlayer: {
     Self: {
       armyListText: '',
       analysisText: '',
-      assistant: {
-        messages: [],
-        prompt: '',
-        open: false,
-        contextText: '',
-      },
     },
     Opponent: {
       armyListText: '',
       analysisText: '',
-      assistant: {
-        messages: [],
-        prompt: '',
-        open: false,
-        contextText: '',
-      },
     },
   },
 };
@@ -200,7 +177,6 @@ export const battletomes: IBattletomesStore = {
 };
 
 export const state: IStore = {
-  auth,
   battletomes,
   modifiers,
   targetModifiers,

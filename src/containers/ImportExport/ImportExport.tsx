@@ -8,15 +8,16 @@ import {
 } from '@material-ui/core';
 import { makeStyles } from '@material-ui/core/styles';
 import ArmySelector from 'components/ImportExport/ArmySelector';
+import BattletomeBackup from 'components/ImportExport/BattletomeBackup';
 import ExportArmyItem from 'components/ImportExport/ExportArmyItem';
 import FactionSelector from 'components/ImportExport/FactionSelector';
 import ImportArmy from 'components/ImportExport/ImportArmy';
 import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useHistory } from 'react-router-dom';
-import { configSelector, mergedBattletomesSelector } from 'store/selectors';
-import { configStore, notificationsStore, unitsStore } from 'store/slices';
-import { Faction } from 'types/army';
+import { configSelector, sortedBattletomesSelector } from 'store/selectors';
+import { battletomesStore, configStore, notificationsStore, unitsStore } from 'store/slices';
+import { Faction, IArmy } from 'types/army';
 import { IUnitParameter } from 'types/unit';
 import { scrollToTop } from 'utils/scrollIntoView';
 import { ROUTES } from 'utils/urls';
@@ -73,7 +74,7 @@ const ImportExport = () => {
   const config = useSelector(configSelector);
   const compareString = (a, b) => 0 - (a < b ? 1 : -1);
   const compareUnit = (a, b) => compareString(a.name, b.name);
-  const sortedMatchPlays = useSelector(mergedBattletomesSelector);
+  const battletomes = useSelector(sortedBattletomesSelector);
   const CHANGE_TITLE = false;
   const excludedFactions = [Faction.All, Faction.List];
   const [exportAsBT, setExportAsBT] = useState(false);
@@ -135,6 +136,22 @@ const ImportExport = () => {
     loadUnitsWithStatus(units, false, false, faction);
   const loadInactiveArmy = (army: IArmy) => loadUnitsWithStatus(army.units, true, false, Faction.List);
 
+  const loadBattletome = (units: IUnitParameter[], faction: Faction) => {
+    if (faction === Faction.List) {
+      dispatch(notificationsStore.actions.addNotification({
+        message: `File is containing an army list, not a known faction. You can't import it as a battletome`,
+        variant: 'error',
+      }));
+      return;
+    }
+    const battletome: IArmy = { faction, label: 'Battletome', units };
+    dispatch(battletomesStore.actions.addBattletome({ battletome }));
+    dispatch(notificationsStore.actions.addNotification({
+      message: `Battletome ${faction} updated successfully`,
+      variant: 'success',
+    }));
+  };
+
   const toggleReplace = () => {
     dispatch(configStore.actions.toggleImportReplace());
   };
@@ -182,8 +199,7 @@ const ImportExport = () => {
         <Card className={classes.card}>
           <Typography variant="h5">Import army</Typography>
           <Typography variant="caption">
-            You can import units from here. Either from a file you exported previously, either from a
-            pre-built selection within the application.
+            Import units from a previously exported file or from your saved battletomes.
           </Typography>
           <div>
             <Switch onChange={toggleReplace} checked={config.importReplace} />
@@ -191,10 +207,25 @@ const ImportExport = () => {
           </div>
           <div className={classes.flexRow}>
             <ImportArmy onArmyLoad={loadUnits} text="Import units from a file" />
-            <ArmySelector onClick={loadInactiveArmy} armies={sortedMatchPlays} label="Import Faction" />
+            {battletomes.length > 0 && (
+              <ArmySelector onClick={loadInactiveArmy} armies={battletomes} label="Import Faction" />
+            )}
           </div>
         </Card>
-
+        <Divider className={classes.divider} />
+        <Card className={classes.card}>
+          <Typography variant="h5">Import and export battletomes</Typography>
+          <Typography variant="caption">
+            No battletomes are included by default. Create units, export your army as a battletome, then
+            import it here. Back up all your customized battletomes to
+            transfer them to another device. Restoring a backup replaces matching factions and leaves other
+            factions unchanged.
+          </Typography>
+          <div className={classes.flexRow}>
+            <ImportArmy onArmyLoad={loadBattletome} text="Import battletome" />
+            <BattletomeBackup />
+          </div>
+        </Card>
       </div>
     </div>
   );

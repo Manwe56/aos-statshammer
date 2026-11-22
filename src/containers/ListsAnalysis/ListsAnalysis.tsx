@@ -111,7 +111,7 @@ const ListsAnalysis = () => {
         <Card className={classes.card}>
           <Typography variant="h5">Lists analysis</Typography>
           <Typography variant="caption">
-            Analyze a pasted list, extract matching rules, and optionally import this list to the current player.
+            Analyze a pasted list and optionally import it to the current player.
           </Typography>
           <div>
             <Switch onChange={toggleReplace} checked={config.importReplace} />

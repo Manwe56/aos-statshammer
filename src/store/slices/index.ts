@@ -1,4 +1,3 @@
-export * from './auth';
 export * from './battletomes';
 export * from './config';
 export * from './modifiers';

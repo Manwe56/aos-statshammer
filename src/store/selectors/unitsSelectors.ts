@@ -2,7 +2,7 @@ import _ from 'lodash';
 import { createSelector } from 'reselect';
 import { IModifierInstance, IModifierInstanceParameter } from 'types/modifiers';
 import type { IStore } from 'types/store';
-import type { IWeaponProfile } from 'types/unit';
+import type { IUnitParameter, IWeaponProfile } from 'types/unit';
 
 /** Get the current units state */
 export const unitsSelector = (state: IStore) => state.units;
@@ -25,15 +25,15 @@ export const unitByUuidSelector = createSelector(unitsSelector, unitIndexByUuidS
   _.memoize((uuid: string) => units[findIndex(uuid)]),
 );
 
-export const activeUnit = (unit) => ({
+export const activeUnit = (unit: IUnitParameter) => ({
   ...unit,
-  weapon_profiles: unit.weapon_profiles
+  weapon_profiles: (unit.weapon_profiles ?? [])
     .filter((profile) => profile.active)
     .map((profile) => ({
       ...profile,
       modifiers: (profile.modifiers ?? []).filter((mod) => mod.active ?? true),
     })),
-  modifiers: unit.modifiers.filter((mod) => mod.active),
+  modifiers: (unit.modifiers ?? []).filter((mod) => mod.active),
 });
 
 export const activeUnitsSelector = createSelector(unitsSelector, (units) =>

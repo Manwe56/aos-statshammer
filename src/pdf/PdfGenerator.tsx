@@ -56,8 +56,6 @@ const PdfGenerator: React.FC<IPdfGeneratorProps> = ({ units, target, results, pr
     const player = activePlayer as TPlayerSide;
     return state.config.listAnalysisByPlayer?.[player]?.armyListText ?? '';
   });
-  const rulesText = useSelector((state: IStore) => state.config.rules ?? '');
-
   const generatePdf = useCallback(
     () =>
       generate(
@@ -70,9 +68,8 @@ const PdfGenerator: React.FC<IPdfGeneratorProps> = ({ units, target, results, pr
         'pdf-cumulative',
         'pdf-prob',
         importedArmyListText,
-        rulesText,
       ),
-    [results, target, unitNames, units, per100Points, importedArmyListText, rulesText],
+    [results, target, unitNames, units, per100Points, importedArmyListText],
   );
 
   const refCallback = useCallback(() => {

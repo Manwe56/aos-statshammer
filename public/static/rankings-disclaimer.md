@@ -1,7 +1,7 @@
 ## Rankings
 
-You will find bellow a ramking of units per damage or effective health. As for the main section of the app, you can also compare the values per one hundred points.
+Rank your saved battletome units by damage or effective health, including values per 100 points.
+No battletomes are included by default. Create units, export your army as a battletome, and import
+it in Import/Export to include them in the rankings. You can also filter by faction.
 
-The units that are taken into account are all the units that are defined in the application. By default you should have approximatively 500 warscrolls over 20 factions. Only the units covered in the index are included by default, and if you own the relevant battletome, you can update your factions in the import/export section. You can also filter out on your favorite faction to have an overview.
-
-Please note that as the number bellows are based on the units definitions that are in the app, they might be wrong. In case of doubt, and to fix the definitions, go in the import/export, import your faction, update the relevant warscrolls, export it as a battletome, and import it again. This should update the units that are ranked bellow.
+Rankings depend on the unit profiles you provide. Update and re-import a battletome to change them.
